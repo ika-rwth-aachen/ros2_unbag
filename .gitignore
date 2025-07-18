@@ -1,0 +1,7 @@
+*.db3
+*.mcap
+*.pyc
+*.pcd
+*.xyz
+*.jpg
+data/

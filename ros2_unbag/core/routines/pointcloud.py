@@ -1,0 +1,67 @@
+import struct
+import pickle
+
+from ros2_unbag.core.routines.base import ExportRoutine
+
+
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"])
+def export_pointcloud_pkl(msg, path, fmt="pointcloud/pkl"):
+    # Export PointCloud2 message as a raw pickle file
+    with open(path + ".pkl", 'wb') as f:
+        pickle.dump(msg, f)
+
+
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])
+def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):
+    # Export PointCloud2 message as an XYZ text file
+    with open(path + ".xyz", 'w') as f:
+        for i in range(0, len(msg.data), msg.point_step):
+            x, y, z = struct.unpack_from("fff", msg.data, offset=i)
+            f.write(f"{x} {y} {z}\n")
+
+
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd"])
+def export_pointcloud_pcd(msg, path, fmt="pointcloud/pcd"):
+    # Export PointCloud2 message as a binary PCD file (v0.7)
+
+    # Map ROS2 field data types to struct format and PCD types
+    type_map = {
+        1: ('B', 'U', 1),
+        2: ('H', 'U', 2),
+        3: ('I', 'U', 4),
+        4: ('b', 'I', 1),
+        5: ('h', 'I', 2),
+        6: ('i', 'I', 4),
+        7: ('f', 'F', 4)
+    }
+
+    fields = msg.fields
+    num_points = len(msg.data) // msg.point_step
+
+    # Extract PCD metadata
+    names = [f.name for f in fields]
+    fmts = [type_map[f.datatype][0] for f in fields]
+    types = [type_map[f.datatype][1] for f in fields]
+    sizes = [type_map[f.datatype][2] for f in fields]
+    counts = [f.count for f in fields]
+    offsets = [f.offset for f in fields]
+
+    # Build PCD header
+    header = [
+        "# .PCD v0.7 - Point Cloud Data file format", "VERSION 0.7",
+        f"FIELDS {' '.join(names)}", f"SIZE {' '.join(map(str, sizes))}",
+        f"TYPE {' '.join(types)}", f"COUNT {' '.join(map(str, counts))}",
+        f"WIDTH {msg.width}", f"HEIGHT {msg.height}", "VIEWPOINT 0 0 0 1 0 0 0",
+        f"POINTS {num_points}", "DATA binary"
+    ]
+
+    with open(path + ".pcd", "wb") as f:
+        # Write header to file
+        for line in header:
+            f.write((line + "\n").encode("ascii"))
+
+        # Write point data
+        for i in range(0, len(msg.data), msg.point_step):
+            for fmt, off in zip(fmts, offsets):
+                val = struct.unpack_from(fmt, msg.data, offset=i + off)[0]
+                f.write(struct.pack(fmt, val))

@@ -1,0 +1,12 @@
+name: Build Docker Image
+
+on: push
+jobs:
+  docker-ros:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ika-rwth-aachen/docker-ros@v1.7.0
+        with:
+          base-image: rwthika/ros2:jazzy
+          command: ros2 unbag
+          target: dev,run
