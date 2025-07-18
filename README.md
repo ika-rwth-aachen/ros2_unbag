@@ -1,4 +1,4 @@
-<img src="ros2_unbag/ui/title.png" style="height:130px; object-fit: cover; object-position: top; clip-path: inset(25% 0 0 0); float: right; margin-top: 20px;">
+<img src="ros2_unbag/ui/title.png" height=130 align="right">
 
 # ros2 unbag
 
@@ -36,7 +36,7 @@ Replace `<distro>` with your ROS 2 distribution.
 Clone the repository:
 
 ```bash
-git clone https://gitlab.ika.rwth-aachen.de/fb-fi/data/r2d2.git
+git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
 cd ros2_unbag
 ```
 
@@ -52,7 +52,7 @@ Clone into your ROS 2 workspace:
 
 ```bash
 cd ~/ros2_ws/src
-git clone https://gitlab.ika.rwth-aachen.de/fb-fi/data/r2d2.git
+git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
 cd ..
 colcon build --packages-select ros2_unbag
 source install/setup.bash
@@ -90,13 +90,17 @@ ros2 unbag <path_to_rosbag>
     --config <config_file>
 ```
 
-    The naming pattern supports `%name`, `%index`, and datetime placeholders such as `%d`, `%m`, `%Y`, etc.
-    When using the build-in export formats [text/csv], [text/json] or [text/yaml], everything gets exported into one file, if you select a name, that does not change during execution (i.e does not include %index or any datetime placeholders).
+The naming pattern supports `%name`, `%index`, and datetime placeholders such as `%d`, `%m`, `%Y`, etc.
 
-    If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required.
+⚠️ When using the build-in export formats `[text/csv]`, `[text/json]` or `[text/yaml]`, everything gets exported into one file, if you select a name, that does not change during execution (i.e does not include `%index` or any datetime placeholders).
 
-    Example: `./main_cli.py rosbag2/rosbag2.db3 
-    --output-dir /docker-ros/ws/test/ --export /altos_radar/altosRadar:pointcloud/xyz:radar --resample /altos_radar/altosRadar:last,0.2`
+If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
+
+Example: 
+```bash
+ros2 unbag rosbag/rosbag.mcap 
+    --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --resample /lidar/point_cloud:last,0.2
+```
 
 ## Routines 
 
@@ -107,17 +111,17 @@ Your message type or output format is not supported by default? No problem! You 
 Routines are defined like this: 
 
 ```python
-from ros2_unbag.core.routines.base import ExportRoutine            # import the base class
+from ros2_unbag.core.routines.base import ExportRoutine                  # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])       # define the message type and output format, each of these can be a list of formats
-def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):             # define the export function
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])        # define the message type and output format, each of these can be a list of formats
+def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):              # define the export function
     # the name of the function does not matter
     # the parameters do need to be defined like this
         # msg: the message to export
         # path: the path to the output folder (without extension)
         # fmt: the format to export to - can be any of the formats defined in the decorator
-    with open(path + ".xyz", 'w') as f:                                 # define your custom logic to export the message
+    with open(path + ".xyz", 'w') as f:                                  # define your custom logic to export the message
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")
@@ -134,6 +138,12 @@ or use them only temporarily by specifying the `--use-routine` option when start
 ros2 unbag --use-routine <path_to_your_routine_file>
 ```
 
+If you installed a routine and do not want it anymore, you can delete it by calling
+```bash
+ros2 unbag --uninstall-routine
+```
+This will give you a selector which routine to uninstall.
+
 ## Processors
 
 Processors are used to modify messages before they are exported. They can be applied to specific topics and allow you to perform operations such as filtering, transforming, or enriching the data.
@@ -141,7 +151,7 @@ Processors are used to modify messages before they are exported. They can be app
 You can define your own processors like this:
 
 ```python
-from ros2_unbag.core.processors.base import Processor              # import the base class
+from ros2_unbag.core.processors.base import Processor               # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
 @Processor("sensor_msgs/msg/CompressedImage", ["recolor"])          # define the message type and the processor name
@@ -186,6 +196,12 @@ or use them only temporarily by specifying the `--use-processor` option when sta
 ros2 unbag --use-processor <path_to_your_processor_file>
 ```
 
+If you installed a processor and do not want it anymore, you can delete it by calling
+```bash
+ros2 unbag --uninstall-processor
+```
+This will give you a selector which processor to uninstall.
+
 ## Resampling
 In many cases, you may want to resample messages in the frequency of a master topic. This allows you to assemble a "frame" of data that is temporally aligned with a specific topic, such as a camera or LIDAR sensor. The resampling process will ensure that the messages from other topics are exported in sync with the master topic's timestamps.
 
@@ -199,6 +215,8 @@ The `nearest` resampling type will listen for the master topic and export it alo
 
 ## CPU utilization
 ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
+
+⚠️ Keep in mind, that this will affect exports into a single file! If you want absolute guarantees, that the messages are in the right order, set the CPU percentage to 0%. This will use only one process.
 
 ## Configs
 When using ROS2 Unbag, you can define your export settings in a JSON configuration file. This works in the GUI, as well as in the CLI version. It allows you to easily reuse your export settings without having to specify them on the command line every time.
