@@ -9,8 +9,10 @@ from ros2_unbag.core.routines.base import ExportRoutine
 
 @ExportRoutine.set_catch_all(["text/json", "text/yaml", "text/csv"])
 def export_generic(msg, path, fmt="text/json"):
-    # Generic export handler for any message type, supports JSON and YAML
-
+    """
+    Generic export handler supporting JSON, YAML, and CSV formats.
+    Serialize the message, determine file extension, and append to the given path with file locking.
+    """
     if fmt == "text/json":
         serialized = message_to_ordereddict(msg)
         serialized_line = json.dumps(serialized, default=str) + "\n"
@@ -36,6 +38,11 @@ def export_generic(msg, path, fmt="text/json"):
                 continue    #retry if the file is locked by another process
 
 def write_line(file, line, filetype):
+    """
+    Write a serialized message line to the file.
+    For JSON/YAML, write the string; for CSV, ensure header and write the row.
+    """
+
     # Simple writing for json and yaml
     if filetype == "text/json" or filetype == "text/yaml":
         file.write(line)
@@ -49,6 +56,10 @@ def write_line(file, line, filetype):
     file.flush()
 
 def add_csv_header(file, header):
+    """
+    Ensure the CSV file starts with the correct header.
+    If missing or different, prepend the provided header row.
+    """
     file.seek(0)
     reader = csv.reader(file)
     first_row = next(reader, None)
@@ -64,6 +75,9 @@ def add_csv_header(file, header):
     file.seek(0, 2)
 
 def flatten(d, parent_key='', sep='.'):
+    """
+    Flatten a nested dict into a single-level dict with compound keys separated by sep.
+    """
     items = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k

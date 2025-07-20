@@ -14,11 +14,16 @@ class BagWriter:
     # Handles writing messages to a ROS2 bag file (MCAP format)
 
     def __init__(self, output_bag_path):
+        """
+        Initialize BagWriter with output path and prepare SequentialWriter.
+        """
         self.output_bag_path = output_bag_path
         self.writer = SequentialWriter()
 
     def open(self, topic_types):
-        # Initialize bag writer with given topic types
+        """
+        Configure and open the bag at output path, creating topics with given types.
+        """
         storage_options = StorageOptions(uri=self.output_bag_path,
                                          storage_id='mcap')
         converter_options = ConverterOptions(input_serialization_format='cdr',
@@ -36,16 +41,22 @@ class BagWriter:
             self.writer.create_topic(metadata)
 
     def close(self):
-        # Close writer
+        """
+        Close the bag writer and release resources.
+        """
         del self.writer
 
     def write(self, topic, msg, timestamp):
+        """
+        Serialize and write a single message to the bag under the specified topic and timestamp.
+        """
         # Write a single message to the bag
         self.writer.write(topic, serialize_message(msg), timestamp)
 
     def write_synchronized(self, messages_by_topic, reference_topic):
-        # Write messages synchronized to reference topic timestamps
-
+        """
+        For each timestamp of the reference topic, select and write the nearest message (≤ timestamp) from each topic.
+        """
         # Sort reference topic messages
         ref_msgs = sorted(messages_by_topic[reference_topic],
                           key=lambda x: x[0])
@@ -74,8 +85,9 @@ class BagWriter:
                 self.write(topic, msg, t_sync)
 
     def resample_and_write(self, reader, selected_topics, reference_topic):
-        # Collect messages and write them (optionally synchronized)
-
+        """
+        Read messages for selected topics, open the bag, and write either all messages in order or synchronized to a reference topic.
+        """
         messages_by_topic = defaultdict(list)
         for topic, msg, t in reader.read_messages(selected_topics):
             messages_by_topic[topic].append((t, msg))

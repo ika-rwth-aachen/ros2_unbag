@@ -6,14 +6,18 @@ from ros2_unbag.core.routines.base import ExportRoutine
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"])
 def export_pointcloud_pkl(msg, path, fmt="pointcloud/pkl"):
-    # Export PointCloud2 message as a raw pickle file
+    """
+    Export PointCloud2 message as a raw pickle file by dumping the message object to a .pkl.
+    """
     with open(path + ".pkl", 'wb') as f:
         pickle.dump(msg, f)
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])
 def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):
-    # Export PointCloud2 message as an XYZ text file
+    """
+    Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
+    """
     with open(path + ".xyz", 'w') as f:
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
@@ -22,8 +26,10 @@ def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd"])
 def export_pointcloud_pcd(msg, path, fmt="pointcloud/pcd"):
-    # Export PointCloud2 message as a binary PCD file (v0.7)
-
+    """
+    Export PointCloud2 message as a binary PCD v0.7 file.
+    Construct and write PCD header from message fields and metadata, then pack and write each point’s data.
+    """
     # Map ROS2 field data types to struct format and PCD types
     type_map = {
         1: ('B', 'U', 1),

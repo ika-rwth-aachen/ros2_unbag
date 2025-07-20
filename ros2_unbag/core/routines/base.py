@@ -7,26 +7,34 @@ class ExportRoutine:
     catch_all = None  # fallback routine if no specific match is found
 
     def __init__(self, msg_types, formats):
-        # Register export routine for given message types and formats
+        """
+        Register an export routine for the specified message types and formats.
+        """
         self.msg_types = msg_types if isinstance(msg_types,
                                                  list) else [msg_types]
         self.formats = formats
         self.__class__.register(self)
 
     def __call__(self, func):
-        # Store the function to be called for export
+        """
+        Decorate a function to assign it as this routine's export handler.
+        """
         self.func = func
         return self
 
     @classmethod
     def register(cls, routine):
-        # Add routine to registry for each message type
+        """
+        Add a routine to the registry under each of its message types.
+        """
         for msg_type in routine.msg_types:
             cls.registry[msg_type].append(routine)
 
     @classmethod
     def get_formats(cls, msg_type):
-        # Return list of supported formats for a message type
+        """
+        Return all supported formats for a given message type, including catch-all formats.
+        """
         supported_formats = []
         if msg_type in cls.registry:
             supported_formats.extend(fmt for r in cls.registry[msg_type] for fmt in r.formats)
@@ -36,7 +44,9 @@ class ExportRoutine:
 
     @classmethod
     def get_handler(cls, msg_type, fmt):
-        # Get the appropriate export function for a type and format
+        """
+        Retrieve the export handler function for a message type and format, falling back to catch-all if needed.
+        """
         for r in cls.registry.get(msg_type, []):
             if fmt in r.formats:
                 return r.func
@@ -46,8 +56,9 @@ class ExportRoutine:
 
     @classmethod
     def set_catch_all(cls, formats):
-        # Register a fallback routine for all message types
-
+        """
+        Decorator to register a fallback export routine for any message type with specified formats.
+        """
         def decorator(func):
             cls.catch_all = ExportRoutine(msg_types=[], formats=formats)
             cls.catch_all.func = func

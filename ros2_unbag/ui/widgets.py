@@ -11,6 +11,9 @@ class TopicSelector(QtWidgets.QWidget):
     # Widget to display and select available topics from the bag
 
     def __init__(self, bag_reader):
+        """
+        Initialize TopicSelector with a BagReader, retrieve topics and message counts, and build the UI.
+        """
         super().__init__()
         self.bag_reader = bag_reader
         self.topics = self.bag_reader.get_topics()
@@ -20,6 +23,9 @@ class TopicSelector(QtWidgets.QWidget):
         self.init_ui()
 
     def init_ui(self):
+        """
+        Build the topic selection UI: group topics by message type with checkboxes and message count labels.
+        """
         layout = QtWidgets.QVBoxLayout()
 
         # Create checkboxes grouped by message type
@@ -52,6 +58,9 @@ class TopicSelector(QtWidgets.QWidget):
         self.setLayout(layout)
 
     def get_selected_topics(self):
+        """
+        Return a list of topics whose checkboxes are currently checked.
+        """
         return [
             topic for topic, cb in self.checkboxes.items() if cb.isChecked()
         ]
@@ -60,6 +69,9 @@ class TopicSelector(QtWidgets.QWidget):
 class ExportOptions(QtWidgets.QWidget):
 
     def __init__(self, selected_topics, all_topics, default_folder):
+        """
+        Initialize ExportOptions with selected topics, all topics mapping, and default output folder; prepare UI state.
+        """
         super().__init__()
         self.config_widgets = {}
         self.master_checkboxes = {}
@@ -74,6 +86,9 @@ class ExportOptions(QtWidgets.QWidget):
         self.init_ui()
 
     def init_ui(self):
+        """
+        Build the export options UI: global settings (CPU, resampling) and per-topic controls for format, paths, naming, and processors.
+        """
         layout = QtWidgets.QVBoxLayout()
 
         # ────────── Global Sync Settings (TOP) ──────────
@@ -195,6 +210,9 @@ class ExportOptions(QtWidgets.QWidget):
             self.assoc_combo.currentText())  # initialize state
 
     def _sync_mode_changed(self, mode):
+        """
+        Enable or disable discard epsilon and master-topic checkboxes based on the selected resampling mode; set default eps for 'nearest'.
+        """
         enable = mode != "no resampling"
         self.eps_edit.setEnabled(enable)
         self.eps_hint.setVisible(mode == "nearest")
@@ -207,6 +225,9 @@ class ExportOptions(QtWidgets.QWidget):
 
     def _processor_changed(self, selected_processor, topic, topic_type,
                            form_layout):
+        """
+        Update the form layout when the processor selection changes: clear old argument fields and add QLineEdits for new processor args.
+        """
         # Safely clear existing argument rows
         for i in reversed(range(form_layout.rowCount())):
             item = form_layout.itemAt(i, QtWidgets.QFormLayout.LabelRole)
@@ -257,6 +278,9 @@ class ExportOptions(QtWidgets.QWidget):
             self.processor_args[topic] = {}
 
     def get_export_config(self):
+        """
+        Collect and return the export configuration dict for each topic and the global configuration from UI widget values.
+        """
         topics_config = {}
         global_config = {}
 
@@ -324,7 +348,9 @@ class ExportOptions(QtWidgets.QWidget):
         return topics_config, global_config
 
     def set_export_config(self, config, global_config=None):
-        # Update widget values from a config dict for topics present in the UI
+        """
+        Populate UI widgets from a given export configuration and optional global settings, restoring formats, paths, naming, and processors.
+        """
         if global_config is not None and "cpu_percentage" in global_config:
             self.cpu_slider.setValue(global_config["cpu_percentage"])
 
@@ -399,6 +425,9 @@ class ExportOptions(QtWidgets.QWidget):
                 break
 
     def select_directory_and_apply(self, edit):
+        """
+        Prompt the user to select a directory and apply it to all output-directory fields.
+        """
         directory = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Select Directory")
         if directory:
@@ -406,6 +435,9 @@ class ExportOptions(QtWidgets.QWidget):
                 path_edit.setText(directory)
 
     def select_directory(self, edit):
+        """
+        Prompt the user to select a directory and set it for the given output-directory field.
+        """
         directory = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Select Directory")
         if directory:

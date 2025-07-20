@@ -10,7 +10,9 @@ from sensor_msgs.msg import PointCloud2
 
 @Processor("sensor_msgs/msg/PointCloud2", ["transform_from_yaml"])
 def apply_transform_from_yaml(msg, custom_frame_path):
-
+    """
+    Apply a rigid-body transform from a YAML file to all points in a PointCloud2 message.
+    """
     # Check if the provided path is valid
     if not os.path.isfile(custom_frame_path):
         raise ValueError(
@@ -76,6 +78,9 @@ def apply_transform_from_yaml(msg, custom_frame_path):
     return transformed_msg
 
 def quaternion_matrix(quaternion):
+    """
+    Compute a 4×4 transformation matrix from a quaternion [x, y, z, w].
+    """
     x, y, z, w = quaternion
     N = x*x + y*y + z*z + w*w
     if N < np.finfo(float).eps:
@@ -96,4 +101,3 @@ def quaternion_matrix(quaternion):
     M[2,1] =     yz + wx
     M[2,2] = 1 - (xx + yy)
     return M
-

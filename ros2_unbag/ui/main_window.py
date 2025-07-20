@@ -19,7 +19,9 @@ class WorkerThread(QtCore.QThread):
         self.args = args
 
     def run(self):
-        # Executes the task function and emits result
+        """
+        Execute the task function with provided args, emit finished signal on success or error signal on exception.
+        """
         try:
             result = self.task_fn(*self.args)
             self.finished.emit(result)
@@ -55,7 +57,9 @@ class ExportProgressDialog(QtWidgets.QDialog):
 
     @QtCore.Slot(int)
     def setValue(self, value):
-        # Update progress bar value
+        """
+        Update the progress bar to the given integer value.
+        """
         self.progress_bar.setValue(value)
 
 
@@ -63,6 +67,9 @@ class UnbagApp(QtWidgets.QWidget):
     # Main application widget for exporting ROS2 bag data
 
     def __init__(self):
+        """
+        Initialize UnbagApp UI: set title, size, scroll area, title image, and file selection button.
+        """
         super().__init__()
         self.setWindowTitle("ros2 unbag")
         self.setGeometry(100, 100, 800, 600)
@@ -96,6 +103,9 @@ class UnbagApp(QtWidgets.QWidget):
         self.bag_loaded = False
 
     def load_bag(self):
+        """
+        Prompt user to select a bag file, disable UI, show loading dialog, and start background reader thread.
+        """
         # Open file dialog and load bag in background
         bag_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self, "Open Bag File", "", "Bag Files (*.db3 *.mcap)")
@@ -121,14 +131,18 @@ class UnbagApp(QtWidgets.QWidget):
         QtCore.QTimer.singleShot(100, self.worker.start)
 
     def load_bag_reader(self, path):
-        # Load the bag file using BagReader
+        """
+        Attempt to create a BagReader for the given path; return the reader or exception.
+        """
         try:
             return BagReader(path)
         except Exception as e:
             return e
 
     def on_bag_loaded(self, result):
-        # Callback after loading bag
+        """
+        Called when bag loading completes: close dialog, re-enable UI, handle errors or show topic selector.
+        """
         self.wait_dialog.close()
         self.setEnabled(True)
 
@@ -143,9 +157,8 @@ class UnbagApp(QtWidgets.QWidget):
 
     def _validate_config(self, config):
         """
-        Validate the export configuration before processing any messages.
+        Ensure each topic in config has a non-empty output directory; raise ValueError on errors.
         """
-
         # Check if output directories are set for each topic
         errors = []
         for topic, cfg in config.items():
@@ -161,6 +174,9 @@ class UnbagApp(QtWidgets.QWidget):
             raise ValueError(f"Invalid export configuration:\n" + "\n".join(errors))
 
     def show_topic_selector(self):
+        """
+        Clear UI layout, display TopicSelector in a scroll area, and add Load/Next buttons.
+        """
         self.clear_layout()
 
         # Scrollable area for topic selector
@@ -190,7 +206,9 @@ class UnbagApp(QtWidgets.QWidget):
         self.layout.addLayout(button_layout)
 
     def show_export_settings_page(self, config=None, global_config=None):
-        # Show export options after topic selection or config load
+        """
+        Clear layout and show export options for selected or loaded config, with navigation buttons.
+        """
         if config is not None and isinstance(config, dict):
             selected_topics = list(config.keys())
         else:
@@ -244,6 +262,9 @@ class UnbagApp(QtWidgets.QWidget):
 
 
     def export_data(self):
+        """
+        Disable UI, show export progress dialog, validate config, and start background export thread.
+        """
         # Run export in background with progress dialog
         self.setEnabled(False)
         self.wait_dialog = ExportProgressDialog("Exporting, please wait...", self)
@@ -274,6 +295,9 @@ class UnbagApp(QtWidgets.QWidget):
 
 
     def run_export(self, bag_reader, config, global_config):
+        """
+        Validate config, instantiate Exporter with progress callback, and run export process.
+        """
         # Run export using Exporter with progress updates
         def progress(current, total):
             value = int((current / total) * 100)
@@ -292,6 +316,9 @@ class UnbagApp(QtWidgets.QWidget):
         return None
 
     def on_export_finished(self, _):
+        """
+        Close progress dialog, re-enable UI, notify user of completion, and exit application.
+        """
         # Cleanup after export finishes
         self.wait_dialog.close()
         self.setEnabled(True)
@@ -299,7 +326,9 @@ class UnbagApp(QtWidgets.QWidget):
         exit()
 
     def on_export_aborted(self):
-        # Handle manual export abort
+        """
+        Terminate export thread on user cancel, warn user, and quit application.
+        """
         if not self.worker.isFinished():
             self.worker.terminate()
             QtWidgets.QMessageBox.warning(self, "Export Aborted",
@@ -308,12 +337,17 @@ class UnbagApp(QtWidgets.QWidget):
 
     @QtCore.Slot(Exception)
     def handle_export_error(self, e):
+        """
+        Terminate export thread on error, show error message, and quit application.
+        """
         self.worker.terminate()
         QtWidgets.QMessageBox.critical(self, "Export Error", str(e))
         QtWidgets.QApplication.quit()
 
     def clear_layout(self):
-        # Remove all widgets and layouts from layout, including nested layouts
+        """
+        Recursively remove and delete all widgets and sublayouts from the main layout.
+        """
         while self.layout.count():
             item = self.layout.takeAt(0)
             widget = item.widget()
@@ -330,6 +364,9 @@ class UnbagApp(QtWidgets.QWidget):
                     sublayout.deleteLater()
 
     def save_config_file(self):
+        """
+        Prompt for save path, retrieve export config, ensure directory exists, and write JSON config to file.
+        """
         # Open file dialog to get save path
         file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Save Config File", str(Path.cwd() / "config.json"), "Config Files (*.json)")
@@ -362,6 +399,9 @@ class UnbagApp(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "Error", f"Failed to save config: {e}")
 
     def load_config_file(self):
+        """
+        Prompt for config file, load JSON, extract global settings, and populate export settings UI.
+        """
         # Open file dialog to load config
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Load Config", str(Path.cwd()), "Config Files (*.json)")
         if not file_path:

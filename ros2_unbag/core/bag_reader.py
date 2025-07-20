@@ -15,6 +15,9 @@ class BagReader:
     # Reads messages and metadata from a ROS2 bag file
 
     def __init__(self, bag_path):
+        """
+        Initialize BagReader with bag path, open the bag, and load topic types and metadata.
+        """
         self.bag_path = bag_path
         self.reader = SequentialReader()
         self.topic_types = {}
@@ -22,7 +25,9 @@ class BagReader:
         self._open_bag()
 
     def _detect_storage_id(self):
-        # Determine storage format based on file extension
+        """
+        Determine storage format ('sqlite3' or 'mcap') from bag file extension.
+        """
         ext = os.path.splitext(self.bag_path)[1].lower()
         if ext == '.db3':
             return 'sqlite3'
@@ -32,7 +37,9 @@ class BagReader:
             raise ValueError(f"Unsupported bag extension: {ext}")
 
     def _open_bag(self):
-        # Open the bag file and extract topic types and metadata
+        """
+        Open the bag with appropriate storage and converter options, and populate topic types and metadata.
+        """
         try:
             storage_id = self._detect_storage_id()
             storage_options = StorageOptions(uri=self.bag_path,
@@ -49,14 +56,18 @@ class BagReader:
             raise RuntimeError(f"Failed to open bag: {e}")
 
     def get_topics(self):
-        # Return topics grouped by message type
+        """
+        Return a dict grouping topics by their message type.
+        """
         topics = defaultdict(list)
         for topic, msg_type in self.topic_types.items():
             topics[msg_type].append(topic)
         return dict(topics)
 
     def get_message_count(self):
-        # Return message count for each topic
+        """
+        Return a dict of message counts per topic from the bag metadata.
+        """
         if not self.metadata:
             raise RuntimeError("Bag metadata not available.")
         return {
@@ -65,7 +76,9 @@ class BagReader:
         }
 
     def get_topics_with_frequency(self):
-        # Calculate approximate frequency for each topic
+        """
+        Calculate and return approximate frequency (messages per second) for each topic.
+        """
         try:
             reader = SequentialReader()
             storage_id = self._detect_storage_id()
@@ -98,11 +111,15 @@ class BagReader:
             raise RuntimeError(f"Failed to calculate frequencies: {e}")
 
     def set_filter(self, selected_topics):
-        # Set topic filter for reading messages
+        """
+        Apply a topic filter to the reader for subsequent message reads.
+        """
         self.reader.set_filter(StorageFilter(topics=list(selected_topics)))
 
     def read_next_message(self):
-        # Read the next message from the bag
+        """
+        Read, deserialize, and return the next message (topic, msg, timestamp), or None if done.
+        """
         if not self.reader.has_next():
             return None
         try:
@@ -114,7 +131,9 @@ class BagReader:
             raise RuntimeError(f"Failed to read message: {e}")
 
     def read_messages(self, selected_topics):
-        # Generator to iterate over messages for selected topics
+        """
+        Generator yielding deserialized messages and timestamps for selected topics.
+        """
         self.set_filter(selected_topics)
         while self.reader.has_next():
             try:

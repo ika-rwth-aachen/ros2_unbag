@@ -6,7 +6,10 @@ from ros2_unbag.core.routines.base import ExportRoutine
 
 @ExportRoutine("sensor_msgs/msg/CompressedImage", ["image/png", "image/jpeg"])
 def export_compressed_image(msg, path, fmt="image/png"):
-    # Export a CompressedImage message to PNG or JPEG
+    """
+    Export a CompressedImage ROS message to PNG or JPEG.
+    If the message is already in the desired format, write raw data; otherwise decode and re-encode with OpenCV.
+    """
     desired_fmt = "jpeg" if fmt == "image/jpeg" else "png"
     msg_fmt = msg.format.lower()
 
@@ -25,6 +28,10 @@ def export_compressed_image(msg, path, fmt="image/png"):
 
 @ExportRoutine("sensor_msgs/msg/Image", ["image/png", "image/jpeg"])
 def export_raw_image(msg, path, fmt="image/png"):
+    """
+    Export a raw Image ROS message to PNG or JPEG.
+    Convert supported encodings (bgr8, rgb8, bgra8) to BGR, then write with OpenCV; error on unsupported formats.
+    """
     if msg.encoding in ("bgr8", "rgb8", "bgra8"):
         img_array = np.frombuffer(msg.data, np.uint8).reshape(msg.height, msg.width, -1)
 

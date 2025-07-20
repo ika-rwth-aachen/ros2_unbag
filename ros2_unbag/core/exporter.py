@@ -12,6 +12,10 @@ class Exporter:
     # Handles parallel export of messages from a ROS2 bag
 
     def __init__(self, bag_reader, export_config, global_config, progress_callback=None):
+        """
+        Initialize Exporter with bag reader, export and global configs.
+        Set up topic indexing, worker count, queue size, and optional progress callback.
+        """
         self.bag_reader = bag_reader
         self.config = export_config
         self.index_map = {
@@ -25,8 +29,11 @@ class Exporter:
         self.queue_maxsize = self.num_workers * 2  # limit for task queue
 
     def run(self):
+        """
+        Orchestrate parallel export: configure reader, start producer, workers, and monitor.
+        Handle exceptions, clean shutdown, and report progress via callback.
+        """
         # Start export process using multiprocessing
-
         message_count = self.bag_reader.get_message_count()
         self.max_progress_count = sum(
             message_count.get(key, 0) for key in self.config)
@@ -97,9 +104,8 @@ class Exporter:
 
     def _producer(self, task_queue, exception_queue):
         """
-        Main producer function. Determines if resampling is needed and dispatches messages accordingly.
+        Read messages, apply optional resampling strategy, enqueue export tasks, track dropped frames, and signal workers.
         """
-
         try:
             dropped_frames = defaultdict(int)  # topic -> count
 
@@ -151,7 +157,7 @@ class Exporter:
 
     def _export_all_messages(self, task_queue):
         """
-        No resampling: read messages one-by-one and export each individually.
+        Read and enqueue every message from configured topics without resampling, then signal workers to terminate.
         """
         while True:
             res = self.bag_reader.read_next_message()
@@ -306,6 +312,9 @@ class Exporter:
             print(f"  {topic}: {count}")
 
     def _enqueue_export_task(self, topic, msg, task_queue):
+        """
+        Build filename and directory for a topic message, create path, and enqueue the export task with format.
+        """
         cfg = self.config.get(topic)
         if not cfg:
             return
@@ -342,6 +351,9 @@ class Exporter:
         task_queue.put((topic, msg, full_path, fmt))
 
     def _worker(self, task_queue, progress_queue, exception_queue):
+        """
+        Consume tasks, apply optional processor, invoke export routine, report progress, and forward exceptions.
+        """
         # Processes messages and performs export
         while True:
             task = task_queue.get()
@@ -384,6 +396,9 @@ class Exporter:
                 break
 
     def _monitor(self, progress_queue):
+        """
+        Count completed exports from progress tokens and invoke the progress callback until termination sentinel.
+        """
         # Tracks and reports export progress
         done = 0
         while True:
@@ -400,6 +415,9 @@ class Exporter:
                     pass
 
     def _format_ros_timestamp(self, header):
+        """
+        Format ROS header timestamp as 'seconds_nanoseconds' with zero padding, or return 'no_timestamp' on error.
+        """
         try:
             sec = header.stamp.sec
             nsec = header.stamp.nanosec
