@@ -1,5 +1,5 @@
-import inspect
 from collections import defaultdict
+import inspect
 
 
 class Processor:

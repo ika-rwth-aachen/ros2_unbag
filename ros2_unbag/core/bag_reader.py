@@ -1,9 +1,13 @@
-import os
 from collections import defaultdict
+import os
 
 from rclpy.serialization import deserialize_message
-from rosbag2_py import (ConverterOptions, SequentialReader, StorageFilter,
-                        StorageOptions)
+from rosbag2_py import (
+    ConverterOptions,
+    SequentialReader,
+    StorageFilter,
+    StorageOptions,
+)
 from rosidl_runtime_py.utilities import get_message
 
 

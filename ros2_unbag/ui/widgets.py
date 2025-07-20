@@ -1,10 +1,10 @@
-import os
 import inspect
+import os
 
 from PySide6 import QtCore, QtWidgets
 
-from ros2_unbag.core.routines import ExportRoutine
 from ros2_unbag.core.processors import Processor
+from ros2_unbag.core.routines import ExportRoutine
 
 
 class TopicSelector(QtWidgets.QWidget):

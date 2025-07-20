@@ -1,7 +1,8 @@
 import os
-import yaml
-import numpy as np
 import struct
+
+import numpy as np
+import yaml
 
 from ros2_unbag.core.processors.base import Processor
 from sensor_msgs.msg import PointCloud2

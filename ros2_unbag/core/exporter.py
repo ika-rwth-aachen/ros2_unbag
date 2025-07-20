@@ -1,11 +1,11 @@
+from collections import defaultdict, deque
+from datetime import datetime
 import multiprocessing as mp
 import os
 import threading
-from datetime import datetime
-from collections import defaultdict, deque
 
-from ros2_unbag.core.routines.base import ExportRoutine
 from ros2_unbag.core.processors.base import Processor
+from ros2_unbag.core.routines.base import ExportRoutine
 
 
 class Exporter:

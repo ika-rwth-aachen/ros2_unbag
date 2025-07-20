@@ -1,4 +1,4 @@
-PySide6==6.9.1
+pyyaml==6.0.2
 numpy==1.26.4
 opencv-python-headless==4.11.0.86
-pyyaml==6.0.2
+PySide6==6.9.1

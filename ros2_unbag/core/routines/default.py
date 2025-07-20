@@ -1,6 +1,7 @@
+import csv
 import fcntl
 import json
-import csv
+
 from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
 
 from ros2_unbag.core.routines.base import ExportRoutine

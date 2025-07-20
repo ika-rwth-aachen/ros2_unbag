@@ -1,7 +1,7 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
-from PySide6 import QtCore, QtGui, QtWidgets, QtCore
+from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Q_ARG, Qt
 
 from ros2_unbag.core.bag_reader import BagReader

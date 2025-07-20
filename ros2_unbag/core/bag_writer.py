@@ -2,8 +2,12 @@ import bisect
 from collections import defaultdict
 
 from rclpy.serialization import serialize_message
-from rosbag2_py import (ConverterOptions, SequentialWriter, StorageOptions,
-                        TopicMetadata)
+from rosbag2_py import (
+    ConverterOptions,
+    SequentialWriter,
+    StorageOptions,
+    TopicMetadata,
+)
 
 
 class BagWriter:
