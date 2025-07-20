@@ -2,7 +2,6 @@ import os
 import yaml
 import numpy as np
 import struct
-import tf_transformations
 
 from ros2_unbag.core.processors.base import Processor
 from sensor_msgs.msg import PointCloud2
@@ -27,7 +26,7 @@ def apply_transform_from_yaml(msg, custom_frame_path):
     rotation = np.array([r["x"], r["y"], r["z"], r["w"]])
 
     # Compute transformation matrix
-    transform_matrix = tf_transformations.quaternion_matrix(rotation)
+    transform_matrix = quaternion_matrix(rotation)
     transform_matrix[0:3, 3] = translation
 
     # Find offsets of x, y, z fields
@@ -74,3 +73,26 @@ def apply_transform_from_yaml(msg, custom_frame_path):
     transformed_msg.data = bytes(data)
 
     return transformed_msg
+
+def quaternion_matrix(quaternion):
+    x, y, z, w = quaternion
+    N = x*x + y*y + z*z + w*w
+    if N < np.finfo(float).eps:
+        return np.eye(4)
+    s = 2.0 / N
+    xx, yy, zz = x*x*s, y*y*s, z*z*s
+    xy, xz, yz = x*y*s, x*z*s, y*z*s
+    wx, wy, wz = w*x*s, w*y*s, w*z*s
+
+    M = np.eye(4)
+    M[0,0] = 1 - (yy + zz)
+    M[0,1] =     xy - wz
+    M[0,2] =     xz + wy
+    M[1,0] =     xy + wz
+    M[1,1] = 1 - (xx + zz)
+    M[1,2] =     yz - wx
+    M[2,0] =     xz - wy
+    M[2,1] =     yz + wx
+    M[2,2] = 1 - (xx + yy)
+    return M
+
