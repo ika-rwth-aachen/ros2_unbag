@@ -1,14 +1,21 @@
 <img src="ros2_unbag/ui/title.png" height=130 align="right">
 
-# ros2 unbag
+# *ros2 unbag* - fast ROS 2 bag export for any format
 
 <p align="center">
   <img src="https://img.shields.io/github/license/ika-rwth-aachen/ros2_unbag"/>
   <a href="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml"><img src="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml/badge.svg"/></a>
 </p>
 
-*ros2 unbag* is a plugin directly build in to the ROS 2 CLI to export selected topics from a ROS2 bag file (`.db3` or `.mcap`) into custom formats using pluggable export routines.
+*ros2 unbag* is a ROS 2 CLI plugin with optional GUI for extracting selected topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
 
+It comes with export routines for [common message types](#export-routines) (sensor data, point clouds, images). You need a special file format or message type? Add your own export plugin for any ROS 2 message or format, and chain custom processors to filter, transform or enrich messages (e.g. drop fields, compute derived values, remap frames).
+
+Optional resampling synchronizes your data streams around a chosen master topic—aligning each other topic either to its last‑known sample (“last”) or to the temporally closest sample (“nearest”)—so you get a consistent sample count in your exports.
+
+For high‑throughput workflows, *ros2 unbag* can spawn multiple worker processes and lets you tune CPU usage. Your topic selections, processor chains, export parameters and resampling mode (last or nearest) can be saved to and loaded from a JSON configuration, ensuring reproducibility across runs.
+
+Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to turn bag files into the data you need.
 
 ## Table of Contents
 
@@ -32,14 +39,13 @@
 
 ## Features
 
-- **Integrated CLI plugin**: `ros2 unbag <args>`  
+- **Integrated ROS 2 CLI plugin**: `ros2 unbag <args>`  
 - **GUI interface** for interactive export  
-- **Pluggable export routines** for any message → format  
+- **Pluggable export routines** enable export of any message to any type  
 - **Custom processors** to filter, transform or enrich messages  
 - **Time‐aligned resampling** (`last` | `nearest`)  
 - **Multi‐process** export with adjustable CPU usage  
 - **JSON config** saving/loading for repeatable workflows  
-
 
 ## Installation 
 
@@ -85,7 +91,7 @@ You can skip local installs by running our ready‑to‑go Docker image:
 docker pull ghcr.io/ika-rwth-aachen/ros2_unbag:latest
 ```
 
-This image comes with ROS 2 Jazzy and `ros2_unbag` preinstalled. To launch it:
+This image comes with ROS 2 Jazzy and *ros2 unbag* preinstalled. To launch it:
 
 1. Clone or download the `docker/docker-compose.yml` in this repo.
 2. Run:
@@ -119,7 +125,7 @@ Then follow the on‑screen prompts to pick your bag file, select topics, and ch
 
 ### CLI Mode
 
-Run the CLI tool by calling ros2_unbag with a path to a rosbag and an export config, consisting of one or more topic:format:[subdirectory] combinations:
+Run the CLI tool by calling *ros2 unbag* with a path to a rosbag and an export config, consisting of one or more topic:format:[subdirectory] combinations:
 
 ```bash
 ros2 unbag <path_to_rosbag> --export </topic:format[:subdir]>…
@@ -149,6 +155,7 @@ In addition to these required flags, there are some optional flags. See the tabl
 | **`--install-processor`**   | `<file.py>`                         | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
 | **`--uninstall-routine`**   | (flag)                              | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
 | **`--uninstall-processor`** | (flag)                              | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
+| **`--help`**                | (flag)                              | Show usage information and exit.                                                                          | Standalone                         | -              |   |
 
 ⚠️ For `[text/csv]`, `[text/json]` or `[text/yaml]` exports, any changing name pattern (e.g. `%index` or date/time placeholders) will produce a separate file per message. To bundle all messages into one file, use a fixed filename (omit `%index` and any timestamp placeholders).
 
