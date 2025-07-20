@@ -42,11 +42,11 @@ class Exporter:
         # Queues for tasks and progress tracking
         task_queue = mp.Queue(self.queue_maxsize)
         progress_queue = mp.Queue()
-        exception_queue = mp.Queue()
+        self.exception_queue = mp.Queue()
 
         # Start producer process to generate tasks
         producer = mp.Process(target=self._producer,
-                              args=(task_queue, exception_queue),
+                              args=(task_queue,),
                               name="Producer",
                               daemon=True)
         producer.start()
@@ -55,7 +55,7 @@ class Exporter:
         workers = []
         for wid in range(self.num_workers):
             worker = mp.Process(target=self._worker,
-                                args=(task_queue, progress_queue, exception_queue),
+                                args=(task_queue, progress_queue),
                                 name=f"Worker-{wid}",
                                 daemon=True)
             worker.start()
@@ -71,9 +71,9 @@ class Exporter:
         # Monitor the queues and handle exceptions
         try:
             while True:
-                if not exception_queue.empty():
+                if not self.exception_queue.empty():
                     # If an exception occurred, retrieve it and terminate all processes
-                    exc_type, exc_msg = exception_queue.get()
+                    exc_type, exc_msg = self.exception_queue.get()
 
                     producer.terminate()                    
                     for w in workers:
@@ -101,8 +101,14 @@ class Exporter:
         progress_queue.put(None)
         monitor.join()
 
+    def abort_export(self):
+        """
+        Abort export by throwing a user abort exception
+        """
+        error = RuntimeError(f"Export aborted by user")
+        self.exception_queue.put((type(error).__name__, str(error)))
 
-    def _producer(self, task_queue, exception_queue):
+    def _producer(self, task_queue):
         """
         Read messages, apply optional resampling strategy, enqueue export tasks, track dropped frames, and signal workers.
         """
@@ -131,7 +137,7 @@ class Exporter:
             self._signal_worker_termination(task_queue)
 
         except Exception as e:
-            exception_queue.put((type(e).__name__, str(e)))
+            self.exception_queue.put((type(e).__name__, str(e)))
             self._signal_worker_termination(task_queue)
             
 
@@ -350,7 +356,7 @@ class Exporter:
         full_path = os.path.join(path, filename)
         task_queue.put((topic, msg, full_path, fmt))
 
-    def _worker(self, task_queue, progress_queue, exception_queue):
+    def _worker(self, task_queue, progress_queue):
         """
         Consume tasks, apply optional processor, invoke export routine, report progress, and forward exceptions.
         """
@@ -392,7 +398,7 @@ class Exporter:
                     progress_queue.put(1)
             except Exception as e:
                 # Handle exceptions during export
-                exception_queue.put((type(e).__name__, str(e)))
+                self.exception_queue.put((type(e).__name__, str(e)))
                 break
 
     def _monitor(self, progress_queue):

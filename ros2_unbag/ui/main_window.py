@@ -61,6 +61,13 @@ class ExportProgressDialog(QtWidgets.QDialog):
         Update the progress bar to the given integer value.
         """
         self.progress_bar.setValue(value)
+    
+    def closeEvent(self, event):
+        """
+        Emit finished event and close
+        """
+        self.finished.emit(0)
+        super().closeEvent(event)
 
 
 class UnbagApp(QtWidgets.QWidget):
@@ -310,8 +317,8 @@ class UnbagApp(QtWidgets.QWidget):
         # If this fails, it will raise an exception that is caught in the worker thread
         self._validate_config(config)
         
-        exporter = Exporter(bag_reader, config, global_config, progress_callback=progress)
-        exporter.run()
+        self.current_exporter = Exporter(bag_reader, config, global_config, progress_callback=progress)
+        self.current_exporter.run()
         
         return None
 
@@ -323,17 +330,13 @@ class UnbagApp(QtWidgets.QWidget):
         self.wait_dialog.close()
         self.setEnabled(True)
         QtWidgets.QMessageBox.information(self, "Done", "Export complete.")
-        exit()
+        QtWidgets.QApplication.quit()
 
-    def on_export_aborted(self):
+    def on_export_aborted(self, _):
         """
-        Terminate export thread on user cancel, warn user, and quit application.
+        Send out a runtime error, to cleanly kill all workers
         """
-        if not self.worker.isFinished():
-            self.worker.terminate()
-            QtWidgets.QMessageBox.warning(self, "Export Aborted",
-                                          "The export was aborted.")
-            QtWidgets.QApplication.quit()
+        self.current_exporter.abort_export()
 
     @QtCore.Slot(Exception)
     def handle_export_error(self, e):
