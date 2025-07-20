@@ -1,0 +1,11 @@
+# To allow X11 forwarding from the docker to the host execute `xhost +local` on your host machine before running this compose file
+
+services:
+  ros2_unbag:
+    image: ghcr.io/ika-rwth-aachen/ros2_unbag:latest
+    command: ros2 unbag                                   # Dafault: GUI, add your own flags here to use the CLI
+    volumes:
+      - ../:/docker-ros/ws/export_workspace               # Mount anything you want to unbag here
+      - /tmp/.X11-unix:/tmp/.X11-unix                     # Needed for X11 forwarding
+    environment:
+      - DISPLAY=$DISPLAY                                  # Needed for X11 forwarding
