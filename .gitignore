@@ -1,7 +1,13 @@
+*.yaml
+*.yml
+*.json
+*.csv
+*.txt
 *.db3
 *.mcap
 *.pyc
 *.pcd
 *.xyz
+*.png
 *.jpg
 data/

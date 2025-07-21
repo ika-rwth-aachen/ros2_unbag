@@ -1,0 +1,56 @@
+# Third-Party Licenses
+
+This project includes the following third-party dependencies. Each is used unmodified and distributed via the Python Package Index (PyPI). The original licenses apply.
+
+---
+
+**1. PyYAML**
+- License: MIT License
+- Source: https://pypi.org/project/PyYAML/
+
+---
+
+**2. NumPy**
+- License: BSD 3-Clause License
+- Source: https://pypi.org/project/numpy/
+
+---
+
+**3. OpenCV (opencv-python-headless)**
+- License: Apache License 2.0
+- Source: https://pypi.org/project/opencv-python-headless/
+
+---
+
+**4. rclpy**
+- License: Apache License 2.0
+- Source: https://github.com/ros2/rclpy
+
+---
+
+**5. rosidl-runtime-py**
+- License: Apache License 2.0
+- Source: https://github.com/ros2/rosidl_python
+
+---
+
+**6. rosbag2_py**
+- License: Apache License 2.0
+- Source: https://github.com/ros2/rosbag2
+
+---
+
+**7. ros2cli**
+- License: Apache License 2.0
+- Source: https://github.com/ros2/ros2cli
+
+---
+
+**8. PySide6**
+- License: GNU Lesser General Public License v3.0 (LGPL-3.0)
+- Source: https://pypi.org/project/PySide6/
+- Note: PySide6 is used as a dynamic dependency and has not been modified.
+
+---
+
+This file is provided for informational purposes and to assist in license compliance.

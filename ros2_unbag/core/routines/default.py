@@ -1,26 +1,74 @@
+# MIT License
+
+# Copyright (c) 2025 Institute for Automotive Engineering (ika), RWTH Aachen University
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import csv
+from datetime import datetime
 import fcntl
 import json
-import csv
+import textwrap
+
 from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
 
 from ros2_unbag.core.routines.base import ExportRoutine
 
 
-@ExportRoutine.set_catch_all(["text/json", "text/yaml", "text/csv"])
-def export_generic(msg, path, fmt="text/json"):
-    # Generic export handler for any message type, supports JSON and YAML
+@ExportRoutine.set_catch_all(["text/yaml", "text/json", "text/csv"])
+def export_generic(msg, path, fmt="text/yaml"):
+    """
+    Generic export handler supporting JSON, YAML, and CSV formats.
+    Serialize the message, determine file extension, and append to the given path with file locking.
 
+    Args:
+        msg: ROS message instance to export.
+        path: Output file path (without extension).
+        fmt: Export format string ("text/yaml", "text/json", "text/csv").
+
+    Returns:
+        None
+    """
+    
+    # Build timestamp
+    try:
+        timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
+                                            msg.header.stamp.nanosec * 1e-9)
+    except AttributeError:
+        # Fallback timestamp (receive time)
+        timestamp = datetime.fromtimestamp(msg.stamp.sec +
+                                            msg.stamp.nanosec * 1e-9)
+        
     if fmt == "text/json":
         serialized = message_to_ordereddict(msg)
-        serialized_line = json.dumps(serialized, default=str) + "\n"
+        serialized_with_timestamp = {str(timestamp): serialized}
+        serialized_line = json.dumps(serialized_with_timestamp, default=str) + "\n"
         file_ending = ".json"
     elif fmt == "text/yaml":
-        serialized_line = message_to_yaml(msg) + "---\n"
+        yaml_content = message_to_yaml(msg)
+        indented_yaml = textwrap.indent(yaml_content, prefix="  ")
+        serialized_line = f"{timestamp}:\n{indented_yaml}\n"
         file_ending = ".yaml"
     elif fmt in ["text/csv", "table/csv"]:
         flat_data = flatten(message_to_ordereddict(msg))
-        values = list(flat_data.values())
-        header = list(flat_data.keys())
+        header = ["timestamp", *flat_data.keys()]
+        values = [str(timestamp), *flat_data.values()]
         file_ending = ".csv"
 
     # Save the serialized message to a file - if the filename is constant, messages will be appended
@@ -35,6 +83,19 @@ def export_generic(msg, path, fmt="text/json"):
                 continue    #retry if the file is locked by another process
 
 def write_line(file, line, filetype):
+    """
+    Write a serialized message line to the file.
+    For JSON/YAML, write the string; for CSV, ensure header and write the row.
+
+    Args:
+        file: File object to write to.
+        line: String for JSON/YAML, or [header, values] list for CSV.
+        filetype: Export format string.
+
+    Returns:
+        None
+    """
+
     # Simple writing for json and yaml
     if filetype == "text/json" or filetype == "text/yaml":
         file.write(line)
@@ -48,6 +109,17 @@ def write_line(file, line, filetype):
     file.flush()
 
 def add_csv_header(file, header):
+    """
+    Ensure the CSV file starts with the correct header.
+    If missing or different, prepend the provided header row.
+
+    Args:
+        file: File object to write to.
+        header: List of column names for the CSV header.
+
+    Returns:
+        None
+    """
     file.seek(0)
     reader = csv.reader(file)
     first_row = next(reader, None)
@@ -63,6 +135,17 @@ def add_csv_header(file, header):
     file.seek(0, 2)
 
 def flatten(d, parent_key='', sep='.'):
+    """
+    Flatten a nested dict into a single-level dict with compound keys separated by sep.
+
+    Args:
+        d: Dictionary to flatten.
+        parent_key: Prefix for keys (used in recursion).
+        sep: Separator string for compound keys.
+
+    Returns:
+        dict: Flattened dictionary.
+    """
     items = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k

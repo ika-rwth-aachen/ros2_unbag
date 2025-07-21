@@ -1,20 +1,53 @@
-import sys
-import os
-import json
+# MIT License
+
+# Copyright (c) 2025 Institute for Automotive Engineering (ika), RWTH Aachen University
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import importlib
+import json
+import os
+import sys
+
 from PySide6 import QtWidgets
 from PySide6.QtWidgets import QMessageBox
 from ros2cli.command import CommandExtension
 
-from ros2_unbag.ui.main_window import UnbagApp
 from ros2_unbag.core.bag_reader import BagReader
 from ros2_unbag.core.exporter import Exporter
-import ros2_unbag.core.routines
 import ros2_unbag.core.processors
+import ros2_unbag.core.routines
+from ros2_unbag.ui.main_window import UnbagApp
 
 
 class ExportCommand(CommandExtension):
     def add_arguments(self, parser, cli_name):
+        """
+        Add command-line arguments for the export command.
+
+        Args:
+            parser: Argument parser object.
+            cli_name: Name of the CLI command.
+
+        Returns:
+            None
+        """
         parser.add_argument("bag", nargs="?", help="Path to ROS2 bag file")
         parser.add_argument(
             "--export", "-e", action="append",
@@ -58,6 +91,16 @@ class ExportCommand(CommandExtension):
             help="Use a processor without installing it. See documentation for details.")
 
     def main(self, parser, args):
+        """
+        Main entry point for the export command. Handles installation, uninstallation, GUI, and CLI modes.
+
+        Args:
+            parser: Argument parser object.
+            args: Parsed command-line arguments.
+
+        Returns:
+            int or None: Return code or None if running GUI.
+        """
 
         # Handle routine or processor installation
         if args.install_routine is not None:
@@ -85,6 +128,15 @@ class ExportCommand(CommandExtension):
             return self._run_cli(args)
 
     def _run_gui(self):
+        """
+        Launch the GUI application for exporting ROS2 bag data.
+
+        Args:
+            None
+
+        Returns:
+            int: Exit code from the Qt application.
+        """
         def qt_exception_hook(exctype, value, traceback):
             QMessageBox.critical(None, "Unhandled Exception",
                                  f"{exctype.__name__}: {value}")
@@ -97,6 +149,15 @@ class ExportCommand(CommandExtension):
         return app.exec()
 
     def _run_cli(self, args):
+        """
+        Run the export process in CLI mode using the provided arguments.
+
+        Args:
+            args: Parsed command-line arguments.
+
+        Returns:
+            int: Exit code (0 for success).
+        """
         if not args.bag:
             sys.exit("Error: No bag file provided. Use 'ros2 unbag <bag_path>' or --gui for GUI mode.")
     
@@ -116,6 +177,16 @@ class ExportCommand(CommandExtension):
         return 0
 
     def _validate_and_build_config(self, args, bag_reader):
+        """
+        Validate CLI arguments and build the export configuration dictionary.
+
+        Args:
+            args: Parsed command-line arguments.
+            bag_reader: BagReader instance for the ROS2 bag.
+
+        Returns:
+            dict: Configuration dictionary for export.
+        """
         config = {}
         for spec in args.export or []:
             parts = spec.split(":")
@@ -177,7 +248,15 @@ class ExportCommand(CommandExtension):
         return config
     
     def install_routine(self, path):
-    
+        """
+        Install a custom routine from the specified Python file.
+
+        Args:
+            path: Path to the Python file to install.
+
+        Returns:
+            None
+        """
         # Determine destination directory
         routines_dir = os.path.dirname(ros2_unbag.core.routines.__file__)
         dest = os.path.join(routines_dir, os.path.basename(path))
@@ -189,7 +268,15 @@ class ExportCommand(CommandExtension):
             print(f"Imported routine from {path}")
 
     def install_processor(self, path):
-        
+        """
+        Install a custom processor from the specified Python file.
+
+        Args:
+            path: Path to the Python file to install.
+
+        Returns:
+            None
+        """
         # Determine destination directory
         processors_dir = os.path.dirname(ros2_unbag.core.processors.__file__)
         dest = os.path.join(processors_dir, os.path.basename(path))
@@ -201,6 +288,16 @@ class ExportCommand(CommandExtension):
             print(f"Imported processor from {path}")
 
     def import_file(self, path, dest_dir):
+        """
+        Copy a Python file to the destination directory for installation.
+
+        Args:
+            path: Path to the source Python file.
+            dest_dir: Destination directory for installation.
+
+        Returns:
+            bool: True if import succeeded, False otherwise.
+        """
         if not os.path.exists(path):
             sys.exit(f"Error: File '{path}' not found.")
         if not path.endswith(".py"):
@@ -218,6 +315,15 @@ class ExportCommand(CommandExtension):
         return True
     
     def uninstall_interactive(self, routine=True):
+        """
+        Interactively uninstall a routine or processor.
+
+        Args:
+            routine: If True, uninstall a routine; if False, uninstall a processor.
+
+        Returns:
+            None
+        """
         if routine:
             dir = os.path.dirname(ros2_unbag.core.routines.__file__)
         else:
@@ -246,6 +352,15 @@ class ExportCommand(CommandExtension):
             print("Invalid selection.")
     
     def use_routine_or_processor(self, path):
+        """
+        Dynamically import and use a routine or processor from the specified Python file.
+
+        Args:
+            path: Path to the Python file to import.
+
+        Returns:
+            None
+        """
         if not os.path.exists(path):
             sys.exit(f"Error: File '{path}' not found.")
         if not path.endswith(".py"):

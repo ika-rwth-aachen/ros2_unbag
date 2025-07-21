@@ -1,6 +1,8 @@
+import subprocess
+
 from setuptools import setup
 from setuptools.command.install import install
-import subprocess
+
 
 APT_PACKAGES = [
     'libxcb-cursor0',

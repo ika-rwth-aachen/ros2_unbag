@@ -1,8 +1,30 @@
+# MIT License
+
+# Copyright (c) 2025 Institute for Automotive Engineering (ika), RWTH Aachen University
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import os
-import yaml
-import numpy as np
 import struct
-import tf_transformations
+
+import numpy as np
+import yaml
 
 from ros2_unbag.core.processors.base import Processor
 from sensor_msgs.msg import PointCloud2
@@ -10,7 +32,19 @@ from sensor_msgs.msg import PointCloud2
 
 @Processor("sensor_msgs/msg/PointCloud2", ["transform_from_yaml"])
 def apply_transform_from_yaml(msg, custom_frame_path):
+    """
+    Apply a rigid-body transform from a YAML file to all points in a PointCloud2 message.
 
+    Args:
+        msg: PointCloud2 message instance.
+        custom_frame_path: Path to YAML file containing translation and rotation.
+
+    Returns:
+        PointCloud2: Transformed PointCloud2 message.
+
+    Raises:
+        ValueError: If file path is invalid or message fields are missing.
+    """
     # Check if the provided path is valid
     if not os.path.isfile(custom_frame_path):
         raise ValueError(
@@ -27,7 +61,7 @@ def apply_transform_from_yaml(msg, custom_frame_path):
     rotation = np.array([r["x"], r["y"], r["z"], r["w"]])
 
     # Compute transformation matrix
-    transform_matrix = tf_transformations.quaternion_matrix(rotation)
+    transform_matrix = quaternion_matrix(rotation)
     transform_matrix[0:3, 3] = translation
 
     # Find offsets of x, y, z fields
@@ -74,3 +108,34 @@ def apply_transform_from_yaml(msg, custom_frame_path):
     transformed_msg.data = bytes(data)
 
     return transformed_msg
+
+def quaternion_matrix(quaternion):
+    """
+    Compute a 4×4 transformation matrix from a quaternion [x, y, z, w].
+
+    Args:
+        quaternion: Sequence of 4 floats [x, y, z, w].
+
+    Returns:
+        numpy.ndarray: 4x4 transformation matrix.
+    """
+    x, y, z, w = quaternion
+    N = x*x + y*y + z*z + w*w
+    if N < np.finfo(float).eps:
+        return np.eye(4)
+    s = 2.0 / N
+    xx, yy, zz = x*x*s, y*y*s, z*z*s
+    xy, xz, yz = x*y*s, x*z*s, y*z*s
+    wx, wy, wz = w*x*s, w*y*s, w*z*s
+
+    M = np.eye(4)
+    M[0,0] = 1 - (yy + zz)
+    M[0,1] =     xy - wz
+    M[0,2] =     xz + wy
+    M[1,0] =     xy + wz
+    M[1,1] = 1 - (xx + zz)
+    M[1,2] =     yz - wx
+    M[2,0] =     xz - wy
+    M[2,1] =     yz + wx
+    M[2,2] = 1 - (xx + yy)
+    return M

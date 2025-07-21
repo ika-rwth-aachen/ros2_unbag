@@ -1,123 +1,225 @@
-<img src="ros2_unbag/ui/title.png" style="height:130px; object-fit: cover; object-position: top; clip-path: inset(25% 0 0 0); float: right; margin-top: 20px;">
+<img src="ros2_unbag/ui/title.png" height=130 align="right">
 
-# ros2 unbag
+# *ros2 unbag* - fast ROS 2 bag export for any format
 
-ros2 unbag is a plugin directly build in to the ROS 2 CLI to export selected topics from a ROS2 bag file (`.db3` or `.mcap`) into custom formats using pluggable export routines.
+<p align="center">
+  <img src="https://img.shields.io/github/license/ika-rwth-aachen/ros2_unbag"/>
+  <a href="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml"><img src="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml/badge.svg"/></a>
+</p>
 
-- [Installation](#installation)
-   - [Prerequisites](#prerequisites)
-   - [Install via pip (from source)](#install-via-pip-from-source)
-   - [Install in a ROS 2 workspace](#install-in-a-ros-2-workspace)
-- [Usage](#usage)
-   - [GUI](#gui)
-   - [CLI](#cli)
-- [Routines](#routines)
-- [Processors](#processors)
-- [Resampling](#resampling)
-   - [Last](#last)
-   - [Nearest](#nearest)
-- [CPU Utilization](#cpu-utilization)
-- [Configs](#configs)
+*ros2 unbag* is a ROS 2 CLI plugin with optional GUI for extracting selected topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
+
+It comes with export routines for [common message types](#export-routines) (sensor data, point clouds, images). You need a special file format or message type? Add your own export plugin for any ROS 2 message or format, and chain custom processors to filter, transform or enrich messages (e.g. drop fields, compute derived values, remap frames).
+
+Optional resampling synchronizes your data streams around a chosen master topic—aligning each other topic either to its last‑known sample (“last”) or to the temporally closest sample (“nearest”)—so you get a consistent sample count in your exports.
+
+For high‑throughput workflows, *ros2 unbag* can spawn multiple worker processes and lets you tune CPU usage. Your topic selections, processor chains, export parameters and resampling mode (last or nearest) can be saved to and loaded from a JSON configuration, ensuring reproducibility across runs.
+
+Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to turn bag files into the data you need.
+
+## Table of Contents
+
+- [Features](#features)  
+- [Installation](#installation)  
+  - [Prerequisites](#prerequisites)  
+  - [From PyPI (via pip)](#from-pypi-via-pip)  
+  - [From Source](#from-source-via-pip)  
+  - [In a ROS 2 Workspace](#in-a-ros-2-workspace-via-colcon)  
+  - [Docker](#docker)  
+- [Quick Start](#quick-start)  
+  - [GUI Mode](#gui-mode)  
+  - [CLI Mode](#cli-mode)  
+- [Config File](#config-file)  
+- [Export Routines](#export-routines)  
+- [Processors](#processors)  
+- [Resampling](#resampling)  
+  - [last](#last)  
+  - [nearest](#nearest)  
+- [CPU Utilization](#cpu-utilization)  
+- [Acknowledgements](#acknowledgements)
+
+## Features
+
+- **Integrated ROS 2 CLI plugin**: `ros2 unbag <args>`  
+- **GUI interface** for interactive export  
+- **Pluggable export routines** enable export of any message to any type  
+- **Custom processors** to filter, transform or enrich messages  
+- **Time‐aligned resampling** (`last` | `nearest`)  
+- **Multi‐process** export with adjustable CPU usage  
+- **JSON config** saving/loading for repeatable workflows  
 
 ## Installation 
 
 ### Prerequisites
 
-Make sure you have a working ROS 2 installation (e.g., Humble, Iron, Jazzy) and that your environment is sourced:
+Make sure you have a working ROS 2 installation (e.g., Humble, Iron, Jazzy, or newer) and that your environment is sourced:
 
 ```bash
 source /opt/ros/<distro>/setup.bash
-````
+```
 
 Replace `<distro>` with your ROS 2 distribution.
 
-### Install via pip (from source)
-
-Clone the repository:
+### From PyPI (via pip)
 
 ```bash
-git clone https://gitlab.ika.rwth-aachen.de/fb-fi/data/r2d2.git
-cd ros2_unbag
+pip install ros2_unbag
 ```
 
-Install the package:
+### From source (via pip)
 
 ```bash
+git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
+cd ros2_unbag
 pip install .
 ```
 
-### Install in a ROS 2 workspace
-
-Clone into your ROS 2 workspace:
+### In a ROS 2 workspace (via colcon)
 
 ```bash
 cd ~/ros2_ws/src
-git clone https://gitlab.ika.rwth-aachen.de/fb-fi/data/r2d2.git
+git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
 cd ..
 colcon build --packages-select ros2_unbag
 source install/setup.bash
 ```
 
-The command will be available as:
+### Docker 
+
+You can skip local installs by running our ready‑to‑go Docker image:
 
 ```bash
-ros2 unbag
+docker pull ghcr.io/ika-rwth-aachen/ros2_unbag:latest
 ```
 
-## Usage
+This image comes with ROS 2 Jazzy and *ros2 unbag* preinstalled. To launch it:
+
+1. Clone or download the `docker/docker-compose.yml` in this repo.
+2. Run:
+
+   ```bash
+   docker-compose -f docker/docker-compose.yml up
+   ```
+3. If you need the GUI, first enable X11 forwarding on your host (at your own risk!):
+
+   ```bash
+   xhost +local:
+   ```
+
+   Then start the container as above—the GUI will appear on your desktop.
+
+
+## Quick Start
 
 You can use the tool either via a graphical user interface (GUI) or a command-line interface (CLI).
 
-### GUI
+### GUI Mode
 
-Run the command below and then follow the screen instructions.
+Launch the interactive interface:
 
 ```bash
 ros2 unbag
 ```
 
-### CLI
+Then follow the on‑screen prompts to pick your bag file, select topics, and choose export settings.
 
-Run the CLI tool by calling below command.
+
+### CLI Mode
+
+Run the CLI tool by calling *ros2 unbag* with a path to a rosbag and an export config, consisting of one or more topic:format:[subdirectory] combinations:
 
 ```bash
-ros2 unbag <path_to_rosbag> 
-    --output-dir <directory> 
-    --export </topic:format[:subdir]> 
-    --naming <naming_pattern> 
-    --resample </master_topic:resample_type[,discard_eps]> 
-    --processing </topic:processor:[arg1_name=arg1_value,arg2_name=arg2_value;...]> 
-    --config <config_file>
+ros2 unbag <path_to_rosbag> --export </topic:format[:subdir]>…
 ```
 
-    The naming pattern supports `%name`, `%index`, and datetime placeholders such as `%d`, `%m`, `%Y`, etc.
-    When using the build-in export formats [text/csv], [text/json] or [text/yaml], everything gets exported into one file, if you select a name, that does not change during execution (i.e does not include %index or any datetime placeholders).
+Alternatively you can load a config file. In this case you do not need any `--export` flag:
+```bash
+ros2 unbag <path_to_rosbag> --config <config.json>
+```
+the structure of config files is described in [here](#config-file).
 
-    If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required.
+In addition to these required flags, there are some optional flags. See the table below, for all possible flags:
+| Flag                        | Value/Format                        | Description                                                                                               | Usage                              | Default        |   |
+| --------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
+| **`bag`**                   | `<path>`                            | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
+| **`-e, --export`**          | `/topic:format[:subdir]`            | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
+| **`-o, --output-dir`**      | `<directory>`                       | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
+| **`--naming`**              | `<pattern>`                         | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
+| **`--resample`**            | `/master:association[,discard_eps]` | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
+| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`    | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |   |
+| **`--cpu-percentage`**      | `<float>`                           | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |   |
+| **`--config`**              | `<config.json>`                     | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |   |
+| **`--gui`**                 | (flag)                              | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |   |
+| **`--use-routine`**         | `<file.py>`                         | Load a routine for this run only (no install).                                                            | Optional                           | –              |   |
+| **`--use-processor`**       | `<file.py>`                         | Load a processor for this run only (no install).                                                          | Optional                           | –              |   |
+| **`--install-routine`**     | `<file.py>`                         | Copy & register custom export routine.                                                                    | Standalone                         | –              |   |
+| **`--install-processor`**   | `<file.py>`                         | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
+| **`--uninstall-routine`**   | (flag)                              | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
+| **`--uninstall-processor`** | (flag)                              | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
+| **`--help`**                | (flag)                              | Show usage information and exit.                                                                          | Standalone                         | -              |   |
 
-    Example: `./main_cli.py rosbag2/rosbag2.db3 
-    --output-dir /docker-ros/ws/test/ --export /altos_radar/altosRadar:pointcloud/xyz:radar --resample /altos_radar/altosRadar:last,0.2`
+⚠️ For `[text/csv]`, `[text/json]` or `[text/yaml]` exports, any changing name pattern (e.g. `%index` or date/time placeholders) will produce a separate file per message. To bundle all messages into one file, use a fixed filename (omit `%index` and any timestamp placeholders).
 
-## Routines 
+⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
 
-Routines define the way how messages are exported from the ROS 2 bag file to the desired output format. The tool comes with a set of predefined routines for common message types and formats, such as `sensor_msgs/msg/PointCloud2` to `pointcloud/xyz`, `sensor_msgs/msg/Image` to `image/jpeg`, and many more.
+Example: 
+```bash
+ros2 unbag rosbag/rosbag.mcap 
+    --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --resample /lidar/point_cloud:last,0.2
+```
+
+## Config File
+When using ros2 unbag, you can define your export settings in a JSON configuration file. This works in the GUI, as well as in the CLI version. It allows you to easily reuse your export settings without having to specify them on the command line every time.
+
+💡 Tip: Use the GUI to create your export settings and then save them via the "Save Config" button. This will create a JSON file with all your export settings, which you can then use in the CLI version.
+
+```jsonc
+{
+  "bag_path": "rosbag/data.mcap",
+  "output_dir": "./out",
+  "exports": [
+    { "topic": "/cam/image_raw", "format": "image/png", "subdir": "cam" },
+    { "topic": "/imu", "format": "text/csv" }
+  ],
+  "resample": [
+    { "master": "/cam/image_raw", "type": "nearest", "discard_eps": 0.05 }
+  ],
+  "processing": [
+    { "topic": "/cam/image_raw", "processor": "recolor", "args": { "color_map": 2 } }
+  ],
+  "naming": "%Y-%m-%d_%H-%M-%S_%name_%index",
+  "cpu_percentage": 50
+}
+```
+
+## Export Routines 
+
+Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for common message types and formats, such as:
+
+| Identifier(s)                                       | Topic(s)                                                         | Description                                                                                                                                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **\[image/png]**, **\[image/jpeg]**                 | • `sensor_msgs/msg/Image`<br>• `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG or PNG.                                                    |
+| **\[pointcloud/pkl]**                               | `sensor_msgs/msg/PointCloud2`                                    | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                                                                                                 |
+| **\[pointcloud/xyz]**                               | `sensor_msgs/msg/PointCloud2`                                    | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.                                                                      |
+| **\[pointcloud/pcd]**                               | `sensor_msgs/msg/PointCloud2`                                    | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                                                          |
+| **\[text/json]**, **\[text/yaml]**, **\[text/csv]** | *(any message type)*                                 | Generic serializer for any message type:<br>• **JSON**: one object per line (`.json`)<br>• **YAML**: full YAML doc per message (`.yaml`)<br>• **CSV**: flatten fields, write header + rows (`.csv`). |
 
 Your message type or output format is not supported by default? No problem! You can add your own export routines to handle custom message types or output formats.
 
 Routines are defined like this: 
 
 ```python
-from ros2_unbag.core.routines.base import ExportRoutine            # import the base class
+from ros2_unbag.core.routines.base import ExportRoutine                  # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])       # define the message type and output format, each of these can be a list of formats
-def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):             # define the export function
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])        # define the message type and output format, each of these can be a list of formats
+def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):              # define the export function
     # the name of the function does not matter
     # the parameters do need to be defined like this
         # msg: the message to export
         # path: the path to the output folder (without extension)
         # fmt: the format to export to - can be any of the formats defined in the decorator
-    with open(path + ".xyz", 'w') as f:                                 # define your custom logic to export the message
+    with open(path + ".xyz", 'w') as f:                                  # define your custom logic to export the message
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")
@@ -134,6 +236,12 @@ or use them only temporarily by specifying the `--use-routine` option when start
 ros2 unbag --use-routine <path_to_your_routine_file>
 ```
 
+If you installed a routine and do not want it anymore, you can delete it by calling
+```bash
+ros2 unbag --uninstall-routine
+```
+You’ll be prompted to pick which routine to uninstall.
+
 ## Processors
 
 Processors are used to modify messages before they are exported. They can be applied to specific topics and allow you to perform operations such as filtering, transforming, or enriching the data.
@@ -141,7 +249,7 @@ Processors are used to modify messages before they are exported. They can be app
 You can define your own processors like this:
 
 ```python
-from ros2_unbag.core.processors.base import Processor              # import the base class
+from ros2_unbag.core.processors.base import Processor               # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
 @Processor("sensor_msgs/msg/CompressedImage", ["recolor"])          # define the message type and the processor name
@@ -186,6 +294,12 @@ or use them only temporarily by specifying the `--use-processor` option when sta
 ros2 unbag --use-processor <path_to_your_processor_file>
 ```
 
+If you installed a processor and do not want it anymore, you can delete it by calling
+```bash
+ros2 unbag --uninstall-processor
+```
+You’ll be prompted to pick which processor to uninstall.
+
 ## Resampling
 In many cases, you may want to resample messages in the frequency of a master topic. This allows you to assemble a "frame" of data that is temporally aligned with a specific topic, such as a camera or LIDAR sensor. The resampling process will ensure that the messages from other topics are exported in sync with the master topic's timestamps.
 
@@ -200,7 +314,21 @@ The `nearest` resampling type will listen for the master topic and export it alo
 ## CPU utilization
 ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
 
-## Configs
-When using ROS2 Unbag, you can define your export settings in a JSON configuration file. This works in the GUI, as well as in the CLI version. It allows you to easily reuse your export settings without having to specify them on the command line every time.
+⚠️ Note: Parallel exports can interleave messages in a single output file. For strict, in‑order output, run with --cpu-percentage 0 to force single‑threaded processing.
 
-Tip: Use the GUI to create your export settings and then save them via the "Save Config" button. This will create a JSON file with all your export settings, which you can then use in the CLI version.
+## Acknowledgements
+This research is accomplished within the following research projects:
+
+| Project | Funding Source |      | 
+|---------|----------------|:----:|
+| <a href="https://www.ika.rwth-aachen.de/de/kompetenzen/projekte/automatisiertes-fahren/4-cad.html"><img src="https://www.ika.rwth-aachen.de/images/projekte/4cad/4cad-logo.svg" alt="4-CAD" height="40"/></a> | Funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) DFG Proj. Nr. 503852364 | <p align="center"><img src="https://www.ika.rwth-aachen.de/images/foerderer/dfg.svg" height="50"/></p> |
+| <a href="https://iexoddus-project.eu/"><img src="https://www.ika.rwth-aachen.de/images/projekte/iexoddus/iEXODDUS%20Logo%20color.svg" alt="iEXXODUS" height="40"/></a> | Funded by the European Union’s Horizon Europe Research and Innovation Programme under Grant Agreement No 101146091 | <p align="center"><img src="https://www.ika.rwth-aachen.de/images/foerderer/eu.svg" height="50"/></p> |
+| <a href="https://synergies-ccam.eu/"><img src="https://www.ika.rwth-aachen.de/images/projekte/synergies/SYNERGIES_Logo%201.png" alt="SYNERGIES" height="40"/></a> | Funded by the European Union’s Horizon Europe Research and Innovation Programme under Grant Agreement No 101146542 | <p align="center"><img src="https://www.ika.rwth-aachen.de/images/foerderer/eu.svg" height="50"/></p> |
+
+## Notice 
+
+> [!IMPORTANT]  
+> This repository is open-sourced and maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/).  
+> We cover a wide variety of research topics within our [*Vehicle Intelligence & Automated Driving*](https://www.ika.rwth-aachen.de/en/competences/fields-of-research/vehicle-intelligence-automated-driving.html) domain.  
+> If you would like to learn more about how we can support your automated driving or robotics efforts, feel free to reach out to us!  
+> :email: ***opensource@ika.rwth-aachen.de***

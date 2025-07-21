@@ -5,8 +5,9 @@ jobs:
   docker-ros:
     runs-on: ubuntu-latest
     steps:
-      - uses: ika-rwth-aachen/docker-ros@v1.7.0
+      - uses: ika-rwth-aachen/docker-ros@main
         with:
           base-image: rwthika/ros2:jazzy
           command: ros2 unbag
           target: dev,run
+          enable-slim: false
