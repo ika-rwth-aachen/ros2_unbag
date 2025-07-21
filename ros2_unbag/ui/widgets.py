@@ -19,6 +19,7 @@ class TopicSelector(QtWidgets.QWidget):
         self.topics = self.bag_reader.get_topics()
         self.message_counts = self.bag_reader.get_message_count()
         self.checkboxes = {}
+        self.select_all_state = True
 
         self.init_ui()
 
@@ -55,7 +56,21 @@ class TopicSelector(QtWidgets.QWidget):
             group_box.setLayout(group_layout)
             layout.addWidget(group_box)
 
+        # Select All / Deselect All button
+        self.select_all_button = QtWidgets.QPushButton("Select All")
+        self.select_all_button.clicked.connect(self.toggle_select_all)
+        layout.addWidget(self.select_all_button)
+
         self.setLayout(layout)
+
+    def toggle_select_all(self):
+        """
+        Toggles the selection state of all checkboxes in the widget.
+        """
+        for cb in self.checkboxes.values():
+            cb.setChecked(self.select_all_state)
+        self.select_all_state = not self.select_all_state
+        self.select_all_button.setText("Deselect All" if not self.select_all_state else "Select All")
 
     def get_selected_topics(self):
         """
