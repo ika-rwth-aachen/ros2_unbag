@@ -284,7 +284,7 @@ class ExportOptions(QtWidgets.QWidget):
         topics_config = {}
         global_config = {}
 
-        global_config["cpu_percentage"] = float(self.cpu_slider.value()) / 100.0
+        global_config["cpu_percentage"] = float(self.cpu_slider.value())
         assoc_mode = self.assoc_combo.currentText()
 
         if assoc_mode != "no resampling":

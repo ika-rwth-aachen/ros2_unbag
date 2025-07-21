@@ -294,6 +294,9 @@ class UnbagApp(QtWidgets.QWidget):
             self.setEnabled(True)
             self.show_export_settings_page()  # show the config UI again
             return
+        
+        self.last_used_config = config
+        self.last_used_global_config = global_config
 
         self.worker = WorkerThread(self.run_export, self.bag_reader, config, global_config)
         self.worker.finished.connect(self.on_export_finished)
@@ -324,13 +327,14 @@ class UnbagApp(QtWidgets.QWidget):
 
     def on_export_finished(self, _):
         """
-        Close progress dialog, re-enable UI, notify user of completion, and exit application.
+        Close progress dialog, re-enable UI, notify user of completion, and return to export settings.
         """
-        # Cleanup after export finishes
         self.wait_dialog.close()
         self.setEnabled(True)
         QtWidgets.QMessageBox.information(self, "Done", "Export complete.")
-        QtWidgets.QApplication.quit()
+
+        # Return to export settings page with previous config
+        self.show_export_settings_page(config=self.last_used_config, global_config=self.last_used_global_config)
 
     def on_export_aborted(self, _):
         """
