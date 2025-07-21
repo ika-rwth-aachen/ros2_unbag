@@ -17,6 +17,12 @@ For high‑throughput workflows, *ros2 unbag* can spawn multiple worker processe
 
 Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to turn bag files into the data you need.
 
+> [!IMPORTANT]  
+> This repository is open-sourced and maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/).  
+> We cover a wide variety of research topics including ROS and ROS 2 tooling within our [*Vehicle Intelligence & Automated Driving*](https://www.ika.rwth-aachen.de/en/competences/fields-of-research/vehicle-intelligence-automated-driving.html) domain.  
+> If you would like to learn more about how we can support your automated driving or robotics efforts, feel free to reach out to us!  
+> :email: ***opensource@ika.rwth-aachen.de***
+
 ## Table of Contents
 
 - [Features](#features)  
@@ -99,7 +105,7 @@ This image comes with ROS 2 Jazzy and *ros2 unbag* preinstalled. To launch it:
    ```bash
    docker-compose -f docker/docker-compose.yml up
    ```
-3. If you need the GUI, first enable X11 forwarding on your host:
+3. If you need the GUI, first enable X11 forwarding on your host (at your own risk!):
 
    ```bash
    xhost +local:
