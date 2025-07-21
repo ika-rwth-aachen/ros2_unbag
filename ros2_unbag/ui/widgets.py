@@ -251,6 +251,10 @@ class ExportOptions(QtWidgets.QWidget):
             rel_path_edit = QtWidgets.QLineEdit()
             name_scheme_edit = QtWidgets.QLineEdit("%name_%index")
 
+            # Sequential export checkbox
+            sequential_export_checkbox = QtWidgets.QCheckBox(
+                "No parallel writes")
+
             # Master checkbox (mutually exclusive)
             is_master_check = QtWidgets.QCheckBox(
                 "Set as Master for Resampling")
@@ -270,6 +274,7 @@ class ExportOptions(QtWidgets.QWidget):
                 proc_combo = None
 
             form_layout.addRow("Format", fmt_combo)
+            form_layout.addRow("Sequential Export", sequential_export_checkbox)
             form_layout.addRow("Output Directory", path_layout)
             form_layout.addRow("Subdirectory", rel_path_edit)
             form_layout.addRow("Naming", name_scheme_edit)
@@ -280,7 +285,7 @@ class ExportOptions(QtWidgets.QWidget):
             group_box.setLayout(form_layout)
             layout.addWidget(group_box)
 
-            self.config_widgets[topic] = (fmt_combo, abs_path_edit,
+            self.config_widgets[topic] = (fmt_combo, sequential_export_checkbox, abs_path_edit,
                                           rel_path_edit, name_scheme_edit,
                                           is_master_check, proc_combo)
 
@@ -424,9 +429,9 @@ class ExportOptions(QtWidgets.QWidget):
 
         for topic, widgets in self.config_widgets.items():
             if assoc_mode == "no resampling":
-                fmt, abs_path, rel_path, name, _, processor = widgets
+                fmt, sequential_export, abs_path, rel_path, name, _, processor = widgets
             else:
-                fmt, abs_path, rel_path, name, is_master, processor = widgets
+                fmt, sequential_export, abs_path, rel_path, name, is_master, processor = widgets
 
             base = abs_path.text().strip()
             sub = rel_path.text().strip().lstrip("/")
@@ -435,7 +440,8 @@ class ExportOptions(QtWidgets.QWidget):
             topic_cfg = {
                 "format": fmt.currentText(),
                 "path": full_path,
-                "naming": name.text().strip()
+                "naming": name.text().strip(),
+                "sequential_export": sequential_export.isChecked()
             }
 
             if assoc_mode != "no resampling" and is_master.isChecked():
@@ -488,12 +494,14 @@ class ExportOptions(QtWidgets.QWidget):
                     f"Topic '{topic}' not found in the bag. Cannot set export config properly."
                 )
 
-            fmt_combo, abs_path_edit, rel_path_edit, name_scheme_edit, is_master_check, proc_combo = widgets
+            fmt_combo, sequential_export_check, abs_path_edit, rel_path_edit, name_scheme_edit, is_master_check, proc_combo = widgets
             # Set format
             fmt = topic_cfg.get("format", "")
             idx = fmt_combo.findText(fmt)
             if idx >= 0:
                 fmt_combo.setCurrentIndex(idx)
+            # Set sequential export checkbox
+            sequential_export_check.setChecked(topic_cfg.get("sequential_export", False))
             # Set output path and subdirectory
             path = topic_cfg.get("path", "")
             if path:

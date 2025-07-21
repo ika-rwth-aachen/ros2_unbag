@@ -49,11 +49,23 @@ class Exporter:
         """
         self.bag_reader = bag_reader
         self.config = export_config
-        self.index_map = {
-            topic: 0 for topic in self.config
-        }  # message index per topic
         self.topic_types = self.bag_reader.topic_types
         self.progress_callback = progress_callback
+
+        # index per-topic and sequential state
+        self.index_map = {}
+        self._sequential_export_topics = []
+        self.manager = mp.Manager()
+        self._topic_order = self.manager.dict()
+        self._topic_locks = {}
+
+        for topic, cfg in self.config.items():
+            self.index_map[topic] = 0
+            if cfg.get('sequential_export', False):
+                self._sequential_export_topics.append(topic)
+                self._topic_order[topic] = 0
+                self._topic_locks[topic] = self.manager.Lock()
+
         self.num_workers = int(mp.cpu_count() * global_config["cpu_percentage"] * 0.01)
         if self.num_workers < 1:
             self.num_workers = 1
@@ -457,7 +469,6 @@ class Exporter:
             naming = naming.replace(key, value)
 
         filename = timestamp.strftime(naming)
-
         os.makedirs(path, exist_ok=True)
         full_path = os.path.join(path, filename)
 
@@ -465,7 +476,7 @@ class Exporter:
         is_first = full_path not in self._enqueued_files
         self._enqueued_files.add(full_path)
 
-        task_queue.put((topic, msg, full_path, fmt, is_first))
+        task_queue.put((topic, msg, full_path, fmt, is_first, index))
 
     def _worker(self, task_queue, progress_queue):
         """
@@ -484,7 +495,7 @@ class Exporter:
             try:
                 if task is None:
                     break
-                topic, msg, full_path, fmt, is_first = task
+                topic, msg, full_path, fmt, is_first, index = task
 
                 # Check if the topic has a processor defined
                 if 'processor' in self.config[topic]:
@@ -509,10 +520,28 @@ class Exporter:
 
                         msg = handler(msg=msg, **processor_args)
 
+                # Prepare wait and post_save for sequential save
+                if topic in self._sequential_export_topics:
+                    lock = self._topic_locks[topic]
+                    def wait_for_save():
+                        while True:
+                            with lock:
+                                current = self._topic_order[topic]
+                            if index == current:
+                                break
+                    def post_save():
+                        with lock:
+                            self._topic_order[topic] += 1
+                else:
+                    def wait_for_save():
+                        return
+                    def post_save():
+                        return
                 topic_type = self.topic_types[topic]
                 handler = ExportRoutine.get_handler(topic_type, fmt)
                 if handler:
-                    handler(msg, full_path, fmt, is_first)
+                    handler(msg, full_path, fmt, is_first, wait_for_save)
+                    post_save()
                     progress_queue.put(1)
             except Exception as e:
                 # Handle exceptions during export

@@ -51,7 +51,7 @@ class ExportCommand(CommandExtension):
         parser.add_argument("bag", nargs="?", help="Path to ROS2 bag file")
         parser.add_argument(
             "--export", "-e", action="append",
-            help="Export spec: /topic:format[:subdir]. Can be repeated.")
+            help="Export spec: /topic:format[:subdir:sequential_flag]. Can be repeated.")
         parser.add_argument("--output-dir", "-o", help="Base output directory")
         parser.add_argument(
             "--naming", default="%name_%index",
@@ -197,11 +197,17 @@ class ExportCommand(CommandExtension):
             if topic not in bag_reader.topic_types:
                 sys.exit(f"Topic {topic} not found in bag.")
             export_path = os.path.join(args.output_dir or ".", subdir.strip("/"))
+            if len(parts) > 3 and parts[3].lower() in ("true", "1", "yes"):
+                sequential_write = True
+            else:
+                sequential_write = False
             config[topic] = {
                 "format": fmt,
                 "path": export_path,
-                "naming": args.naming.strip()
+                "naming": args.naming.strip(),
+                "sequential_export": sequential_write
             }
+            print(config[topic])
 
         if args.resample:
             try:
