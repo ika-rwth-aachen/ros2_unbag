@@ -27,7 +27,7 @@ from ros2_unbag.core.routines.base import ExportRoutine
 
 
 @ExportRoutine("sensor_msgs/msg/CompressedImage", ["image/png", "image/jpeg"])
-def export_compressed_image(msg, path, fmt="image/png", is_first=True, wait_for_save=lambda: None):
+def export_compressed_image(msg, path, fmt="image/png", is_first=True):
     """
     Export a CompressedImage ROS message to PNG or JPEG.
     If the message is already in the desired format, write raw data; otherwise decode and re-encode with OpenCV.
@@ -58,7 +58,7 @@ def export_compressed_image(msg, path, fmt="image/png", is_first=True, wait_for_
 
 
 @ExportRoutine("sensor_msgs/msg/Image", ["image/png", "image/jpeg"])
-def export_raw_image(msg, path, fmt="image/png", is_first=True, wait_for_save=lambda: None):
+def export_raw_image(msg, path, fmt="image/png", is_first=True):
     """
     Export a raw Image ROS message to PNG or JPEG.
     Convert supported encodings (bgr8, rgb8, bgra8) to BGR, then write with OpenCV; error on unsupported formats.

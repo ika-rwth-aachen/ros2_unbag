@@ -139,24 +139,24 @@ ros2 unbag <path_to_rosbag> --config <config.json>
 the structure of config files is described in [here](#config-file).
 
 In addition to these required flags, there are some optional flags. See the table below, for all possible flags:
-| Flag                        | Value/Format                        | Description                                                                                               | Usage                              | Default        |   |
-| --------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
-| **`bag`**                   | `<path>`                            | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
-| **`-e, --export`**          | `/topic:format[:subdir]`            | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
-| **`-o, --output-dir`**      | `<directory>`                       | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
-| **`--naming`**              | `<pattern>`                         | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
-| **`--resample`**            | `/master:association[,discard_eps]` | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
-| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`    | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |   |
-| **`--cpu-percentage`**      | `<float>`                           | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |   |
-| **`--config`**              | `<config.json>`                     | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |   |
-| **`--gui`**                 | (flag)                              | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |   |
-| **`--use-routine`**         | `<file.py>`                         | Load a routine for this run only (no install).                                                            | Optional                           | –              |   |
-| **`--use-processor`**       | `<file.py>`                         | Load a processor for this run only (no install).                                                          | Optional                           | –              |   |
-| **`--install-routine`**     | `<file.py>`                         | Copy & register custom export routine.                                                                    | Standalone                         | –              |   |
-| **`--install-processor`**   | `<file.py>`                         | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
-| **`--uninstall-routine`**   | (flag)                              | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
-| **`--uninstall-processor`** | (flag)                              | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
-| **`--help`**                | (flag)                              | Show usage information and exit.                                                                          | Standalone                         | -              |   |
+| Flag                        | Value/Format                             | Description                                                                                               | Usage                              | Default        |   |
+| --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
+| **`bag`**                   | `<path>`                                 | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
+| **`-e, --export`**          | `/topic:format[:subdir:sequential_flag]` | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
+| **`-o, --output-dir`**      | `<directory>`                            | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
+| **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
+| **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
+| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`         | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |   |
+| **`--cpu-percentage`**      | `<float>`                                | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |   |
+| **`--config`**              | `<config.json>`                          | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |   |
+| **`--gui`**                 | (flag)                                   | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |   |
+| **`--use-routine`**         | `<file.py>`                              | Load a routine for this run only (no install).                                                            | Optional                           | –              |   |
+| **`--use-processor`**       | `<file.py>`                              | Load a processor for this run only (no install).                                                          | Optional                           | –              |   |
+| **`--install-routine`**     | `<file.py>`                              | Copy & register custom export routine.                                                                    | Standalone                         | –              |   |
+| **`--install-processor`**   | `<file.py>`                              | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
+| **`--uninstall-routine`**   | (flag)                                   | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
+| **`--uninstall-processor`** | (flag)                                   | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
+| **`--help`**                | (flag)                                   | Show usage information and exit.                                                                          | Standalone                         | -              |   |
 
 ⚠️ For `[text/csv]`, `[text/json]` or `[text/yaml]` exports, any changing name pattern (e.g. `%index` or date/time placeholders) will produce a separate file per message. To bundle all messages into one file, use a fixed filename (omit `%index` and any timestamp placeholders).
 
@@ -165,7 +165,7 @@ In addition to these required flags, there are some optional flags. See the tabl
 Example: 
 ```bash
 ros2 unbag rosbag/rosbag.mcap 
-    --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --resample /lidar/point_cloud:last,0.2
+    --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --export /radar/point_cloud:pointcloud/pcd:radar --resample /lidar/point_cloud:last,0.2
 ```
 
 ## Config File
@@ -209,17 +209,24 @@ Your message type or output format is not supported by default? No problem! You 
 Routines are defined like this: 
 
 ```python
-from ros2_unbag.core.routines.base import ExportRoutine                  # import the base class
+from ros2_unbag.core.routines.base import ExportRoutine                       # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])        # define the message type and output format, each of these can be a list of formats
-def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):              # define the export function
-    # the name of the function does not matter
-    # the parameters do need to be defined like this
-        # msg: the message to export
-        # path: the path to the output folder (without extension)
-        # fmt: the format to export to - can be any of the formats defined in the decorator
-    with open(path + ".xyz", 'w') as f:                                  # define your custom logic to export the message
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])             # define the message type and output format, each of these can be a list of formats
+def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):    # define the export function, the name of the function does not matter
+    """
+    Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
+
+    Args:
+        msg: message instance.
+        path: Output file path (without extension).
+        fmt: Export format string - can be any of the formats defined in the decorator.
+        is_first: Boolean indicating if this is the first message for the file. Can be useful in single file exports to handle headers or initializations.
+
+    Returns:
+        None
+    """
+    with open(path + ".xyz", 'w') as f:                                       # define your custom logic to export the message
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")
@@ -314,7 +321,7 @@ The `nearest` resampling type will listen for the master topic and export it alo
 ## CPU utilization
 ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
 
-⚠️ Note: Parallel exports can interleave messages in a single output file. For strict, in‑order output, run with --cpu-percentage 0 to force single‑threaded processing.
+⚠️ Note: Parallel exports can interleave messages in a single output file. For strict, in‑order output, you can use the sequential_flag option in `--export`, which will put the messages of this topic onto a single worker process - essentially disabling parallel processing for this topic. All other topics will still be processed in parallel.
 
 ## Acknowledgements
 This research is accomplished within the following research projects:

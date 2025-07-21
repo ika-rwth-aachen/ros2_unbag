@@ -32,7 +32,7 @@ from ros2_unbag.core.routines.base import ExportRoutine
 
 
 @ExportRoutine.set_catch_all(["text/yaml", "text/json", "text/csv"])
-def export_generic(msg, path, fmt="text/yaml", is_first=True, wait_for_save=lambda: None):
+def export_generic(msg, path, fmt="text/yaml", is_first=True):
     """
     Generic export handler supporting JSON, YAML, and CSV formats.
     Serialize the message, determine file extension, and append to the given path with file locking.
@@ -77,7 +77,6 @@ def export_generic(msg, path, fmt="text/yaml", is_first=True, wait_for_save=lamb
     with open(path + file_ending, "a+") as f:
         while True:
             try:
-                wait_for_save()
                 fcntl.flock(f, fcntl.LOCK_EX)
                 if is_first:
                     # clear the file if this is the first message

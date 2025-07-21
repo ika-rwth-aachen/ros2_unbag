@@ -52,24 +52,21 @@ class Exporter:
         self.topic_types = self.bag_reader.topic_types
         self.progress_callback = progress_callback
 
-        # index per-topic and sequential state
-        self.index_map = {}
-        self._sequential_export_topics = []
-        self.manager = mp.Manager()
-        self._topic_order = self.manager.dict()
-        self._topic_locks = {}
+        self.index_map = {t: 0 for t in self.config}
+        self.sequential_topics = [t for t, c in self.config.items() if c.get('sequential_export', False)]
 
-        for topic, cfg in self.config.items():
-            self.index_map[topic] = 0
-            if cfg.get('sequential_export', False):
-                self._sequential_export_topics.append(topic)
-                self._topic_order[topic] = 0
-                self._topic_locks[topic] = self.manager.Lock()
+        # one queue for parallel topics
+        self.parallel_q = mp.Queue()
+        # one queue per sequential topic
+        self.seq_queues = {t: mp.Queue() for t in self.sequential_topics}
 
-        self.num_workers = int(mp.cpu_count() * global_config["cpu_percentage"] * 0.01)
-        if self.num_workers < 1:
-            self.num_workers = 1
-        self.queue_maxsize = self.num_workers * 2  # limit for task queue
+        self.num_workers = max(1, int(mp.cpu_count() * global_config["cpu_percentage"] * 0.01))
+        self.num_parallel_workers = max(1, self.num_workers - len(self.sequential_topics))
+
+        print(f"Using {self.num_workers} workers for export, "
+              f"{self.num_parallel_workers} for parallel topics, "
+              f"{len(self.sequential_topics)} for sequential topics.")
+        self.queue_maxsize = self.num_workers * 2
         self._enqueued_files = set()
 
     def run(self):
@@ -93,27 +90,26 @@ class Exporter:
             message_count.get(key, 0) for key in self.config)
         self.bag_reader.set_filter(self.config.keys())
 
-        # Queues for tasks and progress tracking
-        task_queue = mp.Queue(self.queue_maxsize)
-        progress_queue = mp.Queue()
+        # Queues for exceptions and progress
         self.exception_queue = mp.Queue()
+        progress_queue = mp.Queue()
 
         # Start producer process to generate tasks
-        producer = mp.Process(target=self._producer,
-                              args=(task_queue,),
-                              name="Producer",
-                              daemon=True)
+        producer = mp.Process(target=self._producer, name="Producer", daemon=True)
         producer.start()
 
         # Start worker processes
         workers = []
-        for wid in range(self.num_workers):
-            worker = mp.Process(target=self._worker,
-                                args=(task_queue, progress_queue),
-                                name=f"Worker-{wid}",
-                                daemon=True)
-            worker.start()
-            workers.append(worker)
+
+        # Start workers for parallel topics
+        for i in range(self.num_parallel_workers):
+            process = mp.Process(target=self._worker, args=(self.parallel_q, progress_queue), name=f"Par-{i}", daemon=True)
+            process.start(); workers.append(process)
+
+        # Start one worker per sequential topic
+        for topic, q in self.seq_queues.items():
+            process = mp.Process(target=self._worker, args=(q, progress_queue, self.parallel_q), name=f"Seq-{topic}", daemon=True)
+            process.start(); workers.append(process)
 
         # Start monitor thread to update progress
         monitor = threading.Thread(target=self._monitor,
@@ -168,12 +164,12 @@ class Exporter:
         error = RuntimeError(f"Export aborted by user")
         self.exception_queue.put((type(error).__name__, str(error)))
 
-    def _producer(self, task_queue):
+    def _producer(self):
         """
         Read messages, apply optional resampling strategy, enqueue export tasks, track dropped frames, and signal workers.
 
         Args:
-            task_queue: Multiprocessing queue for export tasks.
+            None
 
         Returns:
             None
@@ -187,24 +183,22 @@ class Exporter:
 
             if master_topic is None:
                 # No resampling configured – export all messages individually
-                self._export_all_messages(task_queue)
+                self._export_all_messages()
                 return
 
             # Dispatch to the appropriate resampling strategy
             if assoc_strategy == 'last':
-                self._process_last_association(task_queue, master_topic,
-                                            discard_eps, dropped_frames)
+                self._process_last_association(master_topic, discard_eps, dropped_frames)
             elif assoc_strategy == 'nearest':
-                self._process_nearest_association(task_queue, master_topic,
-                                                discard_eps, dropped_frames)
+                self._process_nearest_association(master_topic, discard_eps, dropped_frames)
 
             # Output summary and clean exit
             self._print_drop_summary(dropped_frames)
-            self._signal_worker_termination(task_queue)
+            self._signal_worker_termination()
 
         except Exception as e:
             self.exception_queue.put((type(e).__name__, str(e)))
-            self._signal_worker_termination(task_queue)
+            self._signal_worker_termination()
             
 
     def _get_resampling_config(self):
@@ -233,12 +227,12 @@ class Exporter:
                 return topic, assoc_strategy, discard_eps
         return None, None, None
 
-    def _export_all_messages(self, task_queue):
+    def _export_all_messages(self):
         """
         Read and enqueue every message from configured topics without resampling, then signal workers to terminate.
 
         Args:
-            task_queue: Multiprocessing queue for export tasks.
+            None
 
         Returns:
             None
@@ -249,17 +243,16 @@ class Exporter:
                 break
             topic, msg, _ = res
             if topic in self.config:
-                self._enqueue_export_task(topic, msg, task_queue)
-        self._signal_worker_termination(task_queue)
+                self._enqueue_export_task(topic, msg)
+        self._signal_worker_termination()
 
-    def _process_last_association(self, task_queue, master_topic, discard_eps,
+    def _process_last_association(self, master_topic, discard_eps,
                                   dropped_frames):
         """
         Resampling strategy: 'last'.
         Collect the latest message from each topic and align frames based on latest state when master message arrives.
 
         Args:
-            task_queue: Multiprocessing queue for export tasks.
             master_topic: Topic name to use as master (str).
             discard_eps: Optional float threshold for discarding frames.
             dropped_frames: Dict for tracking dropped frames per topic.
@@ -307,7 +300,7 @@ class Exporter:
 
             if frame:
                 for t, m in frame.items():
-                    self._enqueue_export_task(t, m, task_queue)
+                    self._enqueue_export_task(t, m)
             else:
                 for t in self.config:
                     if t == master_topic:
@@ -316,14 +309,13 @@ class Exporter:
                             master_ts - latest_messages[t][0]) > discard_eps):
                         dropped_frames[t] += 1
 
-    def _process_nearest_association(self, task_queue, master_topic,
+    def _process_nearest_association(self, master_topic,
                                      discard_eps, dropped_frames):
         """
         Resampling strategy: 'nearest'.
         Buffer all messages and, when a master message arrives, find the closest message from each other topic.
 
         Args:
-            task_queue: Multiprocessing queue for export tasks.
             master_topic: Topic name to use as master (str).
             discard_eps: Float threshold for discarding frames.
             dropped_frames: Dict for tracking dropped frames per topic.
@@ -377,7 +369,7 @@ class Exporter:
 
                 if valid:
                     for t, m in frame.items():
-                        self._enqueue_export_task(t, m, task_queue)
+                        self._enqueue_export_task(t, m)
                 else:
                     for t in self.config:
                         if t == master_topic:
@@ -396,18 +388,22 @@ class Exporter:
                 while buffers[t] and buffers[t][0][0] < expire_before:
                     buffers[t].popleft()
 
-    def _signal_worker_termination(self, task_queue):
+    def _signal_worker_termination(self):
         """
         Signal worker threads to terminate by pushing sentinel values.
 
         Args:
-            task_queue: Multiprocessing queue for export tasks.
+            None
 
         Returns:
             None
         """
-        for _ in range(self.num_workers):
-            task_queue.put(None)
+        # for the parallel pool
+        for _ in range(self.num_parallel_workers):
+            self.parallel_q.put(None)
+        # for each seqential‑topic worker
+        for topic in self.sequential_topics:
+            self.seq_queues[topic].put(None)
 
     def _print_drop_summary(self, dropped_frames):
         """
@@ -425,14 +421,13 @@ class Exporter:
         for topic, count in dropped_frames.items():
             print(f"  {topic}: {count}")
 
-    def _enqueue_export_task(self, topic, msg, task_queue):
+    def _enqueue_export_task(self, topic, msg):
         """
         Build filename and directory for a topic message, create path, and enqueue the export task with format.
 
         Args:
             topic: Topic name (str).
             msg: ROS2 message instance.
-            task_queue: Multiprocessing queue for export tasks.
 
         Returns:
             None
@@ -476,15 +471,21 @@ class Exporter:
         is_first = full_path not in self._enqueued_files
         self._enqueued_files.add(full_path)
 
-        task_queue.put((topic, msg, full_path, fmt, is_first, index))
+        task = (topic, msg, full_path, fmt, is_first)
+        if topic in self.sequential_topics:
+            self.seq_queues[topic].put(task)
+        else:
+            self.parallel_q.put(task)
 
-    def _worker(self, task_queue, progress_queue):
+    def _worker(self, task_queue, progress_queue, fallback_queue=None):
         """
         Consume tasks, apply optional processor, invoke export routine, report progress, and forward exceptions.
+        If a fallback queue is provided, the worker switches to it when the main queue is closed.
 
         Args:
             task_queue: Multiprocessing queue for export tasks.
             progress_queue: Multiprocessing queue for progress tokens.
+            fallback_queue: Optional fallback queue for tasks if the main queue is closed.
 
         Returns:
             None
@@ -494,8 +495,12 @@ class Exporter:
             task = task_queue.get()
             try:
                 if task is None:
+                    # if we have a fallback, switch to it; else, exit
+                    if fallback_queue:
+                        task_queue, fallback_queue = fallback_queue, None
+                        continue
                     break
-                topic, msg, full_path, fmt, is_first, index = task
+                topic, msg, full_path, fmt, is_first = task
 
                 # Check if the topic has a processor defined
                 if 'processor' in self.config[topic]:
@@ -520,28 +525,10 @@ class Exporter:
 
                         msg = handler(msg=msg, **processor_args)
 
-                # Prepare wait and post_save for sequential save
-                if topic in self._sequential_export_topics:
-                    lock = self._topic_locks[topic]
-                    def wait_for_save():
-                        while True:
-                            with lock:
-                                current = self._topic_order[topic]
-                            if index == current:
-                                break
-                    def post_save():
-                        with lock:
-                            self._topic_order[topic] += 1
-                else:
-                    def wait_for_save():
-                        return
-                    def post_save():
-                        return
                 topic_type = self.topic_types[topic]
                 handler = ExportRoutine.get_handler(topic_type, fmt)
                 if handler:
-                    handler(msg, full_path, fmt, is_first, wait_for_save)
-                    post_save()
+                    handler(msg, full_path, fmt, is_first)
                     progress_queue.put(1)
             except Exception as e:
                 # Handle exceptions during export
