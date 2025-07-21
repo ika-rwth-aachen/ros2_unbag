@@ -58,6 +58,7 @@ class Exporter:
         if self.num_workers < 1:
             self.num_workers = 1
         self.queue_maxsize = self.num_workers * 2  # limit for task queue
+        self._enqueued_files = set()
 
     def run(self):
         """
@@ -459,7 +460,12 @@ class Exporter:
 
         os.makedirs(path, exist_ok=True)
         full_path = os.path.join(path, filename)
-        task_queue.put((topic, msg, full_path, fmt))
+
+        # Determine if this is the first time this file is being enqueued
+        is_first = full_path not in self._enqueued_files
+        self._enqueued_files.add(full_path)
+
+        task_queue.put((topic, msg, full_path, fmt, is_first))
 
     def _worker(self, task_queue, progress_queue):
         """
@@ -478,7 +484,7 @@ class Exporter:
             try:
                 if task is None:
                     break
-                topic, msg, full_path, fmt = task
+                topic, msg, full_path, fmt, is_first = task
 
                 # Check if the topic has a processor defined
                 if 'processor' in self.config[topic]:
@@ -506,7 +512,7 @@ class Exporter:
                 topic_type = self.topic_types[topic]
                 handler = ExportRoutine.get_handler(topic_type, fmt)
                 if handler:
-                    handler(msg, full_path, fmt)
+                    handler(msg, full_path, fmt, is_first)
                     progress_queue.put(1)
             except Exception as e:
                 # Handle exceptions during export

@@ -32,7 +32,7 @@ from ros2_unbag.core.routines.base import ExportRoutine
 
 
 @ExportRoutine.set_catch_all(["text/yaml", "text/json", "text/csv"])
-def export_generic(msg, path, fmt="text/yaml"):
+def export_generic(msg, path, fmt="text/yaml", is_first=True):
     """
     Generic export handler supporting JSON, YAML, and CSV formats.
     Serialize the message, determine file extension, and append to the given path with file locking.
@@ -41,6 +41,7 @@ def export_generic(msg, path, fmt="text/yaml"):
         msg: ROS message instance to export.
         path: Output file path (without extension).
         fmt: Export format string ("text/yaml", "text/json", "text/csv").
+        is_first: Boolean indicating if this is the first message for the file.
 
     Returns:
         None
@@ -76,13 +77,18 @@ def export_generic(msg, path, fmt="text/yaml"):
         while True:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX)
-                write_line(f, serialized_line if fmt != "text/csv" else [header, values], fmt)
+                if is_first:
+                    # clear the file if this is the first message
+                    f.seek(0)
+                    f.truncate()
+                # Write the serialized line to the file
+                write_line(f, serialized_line if fmt != "text/csv" else [header, values], fmt, is_first)
                 fcntl.flock(f, fcntl.LOCK_UN)
                 break
             except BlockingIOError:
                 continue    #retry if the file is locked by another process
 
-def write_line(file, line, filetype):
+def write_line(file, line, filetype, is_first):
     """
     Write a serialized message line to the file.
     For JSON/YAML, write the string; for CSV, ensure header and write the row.
@@ -91,6 +97,7 @@ def write_line(file, line, filetype):
         file: File object to write to.
         line: String for JSON/YAML, or [header, values] list for CSV.
         filetype: Export format string.
+        is_first: Boolean indicating if this is the first message for the file.
 
     Returns:
         None
@@ -102,7 +109,8 @@ def write_line(file, line, filetype):
 
     # Special handling for CSV
     if filetype == "text/csv":
-        add_csv_header(file, line[0])
+        if is_first:
+            add_csv_header(file, line[0])
         writer = csv.writer(file)
         writer.writerow(line[1])   
 
@@ -111,7 +119,6 @@ def write_line(file, line, filetype):
 def add_csv_header(file, header):
     """
     Ensure the CSV file starts with the correct header.
-    If missing or different, prepend the provided header row.
 
     Args:
         file: File object to write to.
@@ -121,18 +128,9 @@ def add_csv_header(file, header):
         None
     """
     file.seek(0)
-    reader = csv.reader(file)
-    first_row = next(reader, None)
-    if first_row != header:
-        file.seek(0)
-        content = file.read()
-        file.seek(0)
-        file.truncate()
-        writer = csv.writer(file)
-        writer.writerow(header)
-        if content:
-            file.write(content)
-    file.seek(0, 2)
+    file.truncate()
+    writer = csv.writer(file)
+    writer.writerow(header)
 
 def flatten(d, parent_key='', sep='.'):
     """
