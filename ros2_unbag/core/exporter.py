@@ -338,7 +338,9 @@ class Exporter:
             timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
                                                msg.header.stamp.nanosec * 1e-9)
         except AttributeError:
-            timestamp = datetime.now()
+            # Fallback timestamp (receive time)
+            timestamp = datetime.fromtimestamp(msg.stamp.sec +
+                                               msg.stamp.nanosec * 1e-9)
 
         # Apply naming pattern
         replacements = {
