@@ -92,19 +92,8 @@ class UnbagApp(QtWidgets.QWidget):
         main_layout.addWidget(scroll)
         self.setLayout(main_layout)
 
-        # Title image
-        base_dir = Path(__file__).resolve().parent
-        pixmap = QtGui.QPixmap(str(base_dir / "title.png")).scaledToWidth(750, QtCore.Qt.TransformationMode.SmoothTransformation)
-        image_label = QtWidgets.QLabel()
-        image_label.setPixmap(pixmap)
-        image_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(image_label)
-
-        # Button to select a bag file
-        self.file_button = QtWidgets.QPushButton("Select ROS2 Bag File (.mcap/.db3)")
-        self.file_button.setFixedHeight(40)
-        self.file_button.clicked.connect(self.load_bag)
-        self.layout.addWidget(self.file_button)
+        # Show init screen
+        self.show_init_screen()
 
         self.pending_config = None
         self.bag_loaded = False
@@ -119,6 +108,12 @@ class UnbagApp(QtWidgets.QWidget):
         if not bag_path:
             return
         
+        # Reset any previously loaded bag options
+        self.bag_reader = None
+        self.topic_selector = None
+        self.export_options = None
+        self.bag_loaded = False
+
         self.bag_parent_folder = Path(bag_path).parent
 
         self.setEnabled(False)
@@ -180,6 +175,26 @@ class UnbagApp(QtWidgets.QWidget):
             print("Please set output directory paths and try again!\033[0m")
             raise ValueError(f"Invalid export configuration:\n" + "\n".join(errors))
 
+    def show_init_screen(self):
+        """
+        Clear UI and show the initial file selection screen.
+        """
+        self.clear_layout()
+
+        # Title image
+        base_dir = Path(__file__).resolve().parent
+        pixmap = QtGui.QPixmap(str(base_dir / "title.png")).scaledToWidth(750, QtCore.Qt.TransformationMode.SmoothTransformation)
+        image_label = QtWidgets.QLabel()
+        image_label.setPixmap(pixmap)
+        image_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(image_label)
+
+        # Button to select a bag file
+        file_button = QtWidgets.QPushButton("Select ROS2 Bag File (.mcap/.db3)")
+        file_button.setFixedHeight(40)
+        file_button.clicked.connect(self.load_bag)
+        self.layout.addWidget(file_button)
+
     def show_topic_selector(self):
         """
         Clear UI layout, display TopicSelector in a scroll area, and add Load/Next buttons.
@@ -202,6 +217,10 @@ class UnbagApp(QtWidgets.QWidget):
         # Fixed button layout at bottom
         button_layout = QtWidgets.QHBoxLayout()
         
+        back_button = QtWidgets.QPushButton("Back")
+        back_button.clicked.connect(self.show_init_screen)
+        button_layout.addWidget(back_button)
+
         load_config_button = QtWidgets.QPushButton("Load Config")
         load_config_button.clicked.connect(self.load_config_file)
         button_layout.addWidget(load_config_button)
