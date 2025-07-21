@@ -7,6 +7,12 @@ from .base import Processor
 def load_all_processors():
     """
     Dynamically import all modules in the current package to register Processor handlers.
+
+    Args:
+        None
+
+    Returns:
+        None
     """
     package = __name__
     for _, module_name, _ in pkgutil.iter_modules(__path__):

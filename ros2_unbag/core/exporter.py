@@ -15,6 +15,15 @@ class Exporter:
         """
         Initialize Exporter with bag reader, export and global configs.
         Set up topic indexing, worker count, queue size, and optional progress callback.
+
+        Args:
+            bag_reader: BagReader instance for the ROS2 bag.
+            export_config: Dict of per-topic export configuration.
+            global_config: Dict of global settings.
+            progress_callback: Optional function for reporting progress.
+
+        Returns:
+            None
         """
         self.bag_reader = bag_reader
         self.config = export_config
@@ -32,6 +41,16 @@ class Exporter:
         """
         Orchestrate parallel export: configure reader, start producer, workers, and monitor.
         Handle exceptions, clean shutdown, and report progress via callback.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If an exception occurs in a worker or producer.
+            KeyboardInterrupt: If interrupted by user.
         """
         # Start export process using multiprocessing
         message_count = self.bag_reader.get_message_count()
@@ -103,7 +122,13 @@ class Exporter:
 
     def abort_export(self):
         """
-        Abort export by throwing a user abort exception
+        Abort export by throwing a user abort exception.
+
+        Args:
+            None
+
+        Returns:
+            None
         """
         error = RuntimeError(f"Export aborted by user")
         self.exception_queue.put((type(error).__name__, str(error)))
@@ -111,6 +136,12 @@ class Exporter:
     def _producer(self, task_queue):
         """
         Read messages, apply optional resampling strategy, enqueue export tasks, track dropped frames, and signal workers.
+
+        Args:
+            task_queue: Multiprocessing queue for export tasks.
+
+        Returns:
+            None
         """
         try:
             dropped_frames = defaultdict(int)  # topic -> count
@@ -145,6 +176,12 @@ class Exporter:
         """
         Scan config and extract master topic and resampling strategy.
         Only one master topic is allowed.
+
+        Args:
+            None
+
+        Returns:
+            tuple: (master_topic: str or None, assoc_strategy: str or None, discard_eps: float or None)
         """
         for topic, cfg in self.config.items():
             rcfg = cfg.get('resample_config')
@@ -164,6 +201,12 @@ class Exporter:
     def _export_all_messages(self, task_queue):
         """
         Read and enqueue every message from configured topics without resampling, then signal workers to terminate.
+
+        Args:
+            task_queue: Multiprocessing queue for export tasks.
+
+        Returns:
+            None
         """
         while True:
             res = self.bag_reader.read_next_message()
@@ -179,6 +222,15 @@ class Exporter:
         """
         Resampling strategy: 'last'.
         Collect the latest message from each topic and align frames based on latest state when master message arrives.
+
+        Args:
+            task_queue: Multiprocessing queue for export tasks.
+            master_topic: Topic name to use as master (str).
+            discard_eps: Optional float threshold for discarding frames.
+            dropped_frames: Dict for tracking dropped frames per topic.
+
+        Returns:
+            None
         """
         latest_messages = {}
         latest_ts_seen = 0.0
@@ -234,6 +286,15 @@ class Exporter:
         """
         Resampling strategy: 'nearest'.
         Buffer all messages and, when a master message arrives, find the closest message from each other topic.
+
+        Args:
+            task_queue: Multiprocessing queue for export tasks.
+            master_topic: Topic name to use as master (str).
+            discard_eps: Float threshold for discarding frames.
+            dropped_frames: Dict for tracking dropped frames per topic.
+
+        Returns:
+            None
         """
         buffers = defaultdict(deque)
         latest_ts_seen = 0.0
@@ -303,6 +364,12 @@ class Exporter:
     def _signal_worker_termination(self, task_queue):
         """
         Signal worker threads to terminate by pushing sentinel values.
+
+        Args:
+            task_queue: Multiprocessing queue for export tasks.
+
+        Returns:
+            None
         """
         for _ in range(self.num_workers):
             task_queue.put(None)
@@ -310,6 +377,12 @@ class Exporter:
     def _print_drop_summary(self, dropped_frames):
         """
         Print summary of how many frames were dropped per topic.
+
+        Args:
+            dropped_frames: Dict mapping topic names to dropped frame counts.
+
+        Returns:
+            None
         """
         if not dropped_frames:
             return
@@ -320,6 +393,14 @@ class Exporter:
     def _enqueue_export_task(self, topic, msg, task_queue):
         """
         Build filename and directory for a topic message, create path, and enqueue the export task with format.
+
+        Args:
+            topic: Topic name (str).
+            msg: ROS2 message instance.
+            task_queue: Multiprocessing queue for export tasks.
+
+        Returns:
+            None
         """
         cfg = self.config.get(topic)
         if not cfg:
@@ -361,6 +442,13 @@ class Exporter:
     def _worker(self, task_queue, progress_queue):
         """
         Consume tasks, apply optional processor, invoke export routine, report progress, and forward exceptions.
+
+        Args:
+            task_queue: Multiprocessing queue for export tasks.
+            progress_queue: Multiprocessing queue for progress tokens.
+
+        Returns:
+            None
         """
         # Processes messages and performs export
         while True:
@@ -406,6 +494,12 @@ class Exporter:
     def _monitor(self, progress_queue):
         """
         Count completed exports from progress tokens and invoke the progress callback until termination sentinel.
+
+        Args:
+            progress_queue: Multiprocessing queue for progress tokens.
+
+        Returns:
+            None
         """
         # Tracks and reports export progress
         done = 0
@@ -425,6 +519,12 @@ class Exporter:
     def _format_ros_timestamp(self, header):
         """
         Format ROS header timestamp as 'seconds_nanoseconds' with zero padding, or return 'no_timestamp' on error.
+
+        Args:
+            header: ROS message header with stamp attribute.
+
+        Returns:
+            str: Formatted timestamp string.
         """
         try:
             sec = header.stamp.sec

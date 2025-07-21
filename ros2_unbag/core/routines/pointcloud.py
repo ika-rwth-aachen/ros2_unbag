@@ -8,6 +8,14 @@ from ros2_unbag.core.routines.base import ExportRoutine
 def export_pointcloud_pkl(msg, path, fmt="pointcloud/pkl"):
     """
     Export PointCloud2 message as a raw pickle file by dumping the message object to a .pkl.
+
+    Args:
+        msg: PointCloud2 message instance.
+        path: Output file path (without extension).
+        fmt: Export format string (default "pointcloud/pkl").
+
+    Returns:
+        None
     """
     with open(path + ".pkl", 'wb') as f:
         pickle.dump(msg, f)
@@ -17,6 +25,14 @@ def export_pointcloud_pkl(msg, path, fmt="pointcloud/pkl"):
 def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):
     """
     Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
+
+    Args:
+        msg: PointCloud2 message instance.
+        path: Output file path (without extension).
+        fmt: Export format string (default "pointcloud/xyz").
+
+    Returns:
+        None
     """
     with open(path + ".xyz", 'w') as f:
         for i in range(0, len(msg.data), msg.point_step):

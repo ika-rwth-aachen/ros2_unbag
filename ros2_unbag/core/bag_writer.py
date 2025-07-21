@@ -11,11 +11,17 @@ from rosbag2_py import (
 
 
 class BagWriter:
-    # Handles writing messages to a ROS2 bag file (MCAP format)
+    # Handles writing messages to a ROS2 bag file
 
     def __init__(self, output_bag_path):
         """
         Initialize BagWriter with output path and prepare SequentialWriter.
+
+        Args:
+            output_bag_path: Path to the output ROS2 bag file.
+
+        Returns:
+            None
         """
         self.output_bag_path = output_bag_path
         self.writer = SequentialWriter()
@@ -23,6 +29,12 @@ class BagWriter:
     def open(self, topic_types):
         """
         Configure and open the bag at output path, creating topics with given types.
+
+        Args:
+            topic_types: Dict mapping topic names to message type strings.
+
+        Returns:
+            None
         """
         storage_options = StorageOptions(uri=self.output_bag_path,
                                          storage_id='mcap')
@@ -43,12 +55,26 @@ class BagWriter:
     def close(self):
         """
         Close the bag writer and release resources.
+
+        Args:
+            None
+
+        Returns:
+            None
         """
         del self.writer
 
     def write(self, topic, msg, timestamp):
         """
         Serialize and write a single message to the bag under the specified topic and timestamp.
+
+        Args:
+            topic: Topic name (str).
+            msg: ROS2 message instance.
+            timestamp: Timestamp for the message (int or float).
+
+        Returns:
+            None
         """
         # Write a single message to the bag
         self.writer.write(topic, serialize_message(msg), timestamp)
@@ -56,6 +82,13 @@ class BagWriter:
     def write_synchronized(self, messages_by_topic, reference_topic):
         """
         For each timestamp of the reference topic, select and write the nearest message (≤ timestamp) from each topic.
+
+        Args:
+            messages_by_topic: Dict mapping topic names to lists of (timestamp, message) tuples.
+            reference_topic: Topic name to synchronize against (str).
+
+        Returns:
+            None
         """
         # Sort reference topic messages
         ref_msgs = sorted(messages_by_topic[reference_topic],
@@ -87,6 +120,14 @@ class BagWriter:
     def resample_and_write(self, reader, selected_topics, reference_topic):
         """
         Read messages for selected topics, open the bag, and write either all messages in order or synchronized to a reference topic.
+
+        Args:
+            reader: BagReader instance.
+            selected_topics: List of topic names to export.
+            reference_topic: Topic name to synchronize against, or None.
+
+        Returns:
+            None
         """
         messages_by_topic = defaultdict(list)
         for topic, msg, t in reader.read_messages(selected_topics):

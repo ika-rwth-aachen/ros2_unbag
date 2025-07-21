@@ -7,7 +7,18 @@ from ros2_unbag.core.processors.base import Processor
 @Processor("sensor_msgs/msg/CompressedImage", ["recolor"])
 def recolor_compressed_image(msg, color_map):
     """
-    Recolor a compressed image using a cv2 color map
+    Recolor a compressed image using a cv2 color map.
+
+    Args:
+        msg: CompressedImage ROS message instance.
+        color_map: Integer or string convertible to integer specifying cv2 colormap.
+
+    Returns:
+        CompressedImage: Modified message with recolored image data.
+
+    Raises:
+        ValueError: If color_map is not an integer.
+        RuntimeError: If image encoding fails.
     """
     try:
         color_map = int(color_map)

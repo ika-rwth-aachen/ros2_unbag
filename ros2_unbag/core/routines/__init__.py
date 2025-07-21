@@ -6,6 +6,12 @@ from .base import ExportRoutine
 def load_all_routines():
     """
     Dynamically import all modules in the current package to register ExportRoutine handlers.
+
+    Args:
+        None
+
+    Returns:
+        None
     """
     package = __name__
     for _, module_name, _ in pkgutil.iter_modules(__path__):

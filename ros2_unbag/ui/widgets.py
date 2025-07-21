@@ -13,6 +13,12 @@ class TopicSelector(QtWidgets.QWidget):
     def __init__(self, bag_reader):
         """
         Initialize TopicSelector with a BagReader, retrieve topics and message counts, and build the UI.
+
+        Args:
+            bag_reader: BagReader instance for the ROS2 bag.
+
+        Returns:
+            None
         """
         super().__init__()
         self.bag_reader = bag_reader
@@ -26,6 +32,12 @@ class TopicSelector(QtWidgets.QWidget):
     def init_ui(self):
         """
         Build the topic selection UI: group topics by message type with checkboxes and message count labels.
+
+        Args:
+            None
+
+        Returns:
+            None
         """
         layout = QtWidgets.QVBoxLayout()
 
@@ -69,6 +81,12 @@ class TopicSelector(QtWidgets.QWidget):
     def toggle_select_all(self):
         """
         Toggles the selection state of all checkboxes in the widget.
+
+        Args:
+            None
+
+        Returns:
+            None
         """
         for cb in self.checkboxes.values():
             cb.setChecked(self.select_all_state)
@@ -78,6 +96,12 @@ class TopicSelector(QtWidgets.QWidget):
     def _make_label_toggle_cb(self, checkbox):
         """
         Creates a callback function that toggles the state of the given checkbox.
+
+        Args:
+            checkbox: QCheckBox instance to toggle.
+
+        Returns:
+            function: Callback function for mousePressEvent.
         """
         def toggle(_):
             checkbox.toggle()
@@ -86,6 +110,12 @@ class TopicSelector(QtWidgets.QWidget):
     def get_selected_topics(self):
         """
         Return a list of topics whose checkboxes are currently checked.
+
+        Args:
+            None
+
+        Returns:
+            list: List of selected topic names.
         """
         return [
             topic for topic, cb in self.checkboxes.items() if cb.isChecked()
@@ -97,6 +127,14 @@ class ExportOptions(QtWidgets.QWidget):
     def __init__(self, selected_topics, all_topics, default_folder):
         """
         Initialize ExportOptions with selected topics, all topics mapping, and default output folder; prepare UI state.
+
+        Args:
+            selected_topics: List of selected topic names.
+            all_topics: Dict mapping message types to topic lists.
+            default_folder: Default output folder path.
+
+        Returns:
+            None
         """
         super().__init__()
         self.config_widgets = {}
@@ -114,6 +152,12 @@ class ExportOptions(QtWidgets.QWidget):
     def init_ui(self):
         """
         Build the export options UI: global settings (CPU, resampling) and per-topic controls for format, paths, naming, and processors.
+
+        Args:
+            None
+
+        Returns:
+            None
         """
         layout = QtWidgets.QVBoxLayout()
 
@@ -238,6 +282,12 @@ class ExportOptions(QtWidgets.QWidget):
     def _sync_mode_changed(self, mode):
         """
         Enable or disable discard epsilon and master-topic checkboxes based on the selected resampling mode; set default eps for 'nearest'.
+
+        Args:
+            mode: Selected association strategy (str).
+
+        Returns:
+            None
         """
         enable = mode != "no resampling"
         self.eps_edit.setEnabled(enable)
@@ -253,6 +303,15 @@ class ExportOptions(QtWidgets.QWidget):
                            form_layout):
         """
         Update the form layout when the processor selection changes: clear old argument fields and add QLineEdits for new processor args.
+
+        Args:
+            selected_processor: Name of the selected processor (str).
+            topic: Topic name (str).
+            topic_type: Message type (str).
+            form_layout: QFormLayout instance for the topic.
+
+        Returns:
+            None
         """
         # Safely clear existing argument rows
         for i in reversed(range(form_layout.rowCount())):
@@ -306,6 +365,12 @@ class ExportOptions(QtWidgets.QWidget):
     def get_export_config(self):
         """
         Collect and return the export configuration dict for each topic and the global configuration from UI widget values.
+
+        Args:
+            None
+
+        Returns:
+            tuple: (topics_config: dict, global_config: dict)
         """
         topics_config = {}
         global_config = {}
@@ -376,6 +441,13 @@ class ExportOptions(QtWidgets.QWidget):
     def set_export_config(self, config, global_config=None):
         """
         Populate UI widgets from a given export configuration and optional global settings, restoring formats, paths, naming, and processors.
+
+        Args:
+            config: Dict of per-topic export configuration.
+            global_config: Optional dict of global settings.
+
+        Returns:
+            None
         """
         if global_config is not None and "cpu_percentage" in global_config:
             self.cpu_slider.setValue(global_config["cpu_percentage"])
@@ -453,6 +525,12 @@ class ExportOptions(QtWidgets.QWidget):
     def select_directory_and_apply(self, edit):
         """
         Prompt the user to select a directory and apply it to all output-directory fields.
+
+        Args:
+            edit: QLineEdit widget to update.
+
+        Returns:
+            None
         """
         directory = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Select Directory")
@@ -463,6 +541,12 @@ class ExportOptions(QtWidgets.QWidget):
     def select_directory(self, edit):
         """
         Prompt the user to select a directory and set it for the given output-directory field.
+
+        Args:
+            edit: QLineEdit widget to update.
+
+        Returns:
+            None
         """
         directory = QtWidgets.QFileDialog.getExistingDirectory(
             self, "Select Directory")

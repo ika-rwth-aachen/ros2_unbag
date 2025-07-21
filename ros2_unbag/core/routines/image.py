@@ -9,6 +9,14 @@ def export_compressed_image(msg, path, fmt="image/png"):
     """
     Export a CompressedImage ROS message to PNG or JPEG.
     If the message is already in the desired format, write raw data; otherwise decode and re-encode with OpenCV.
+
+    Args:
+        msg: CompressedImage ROS message instance.
+        path: Output file path (without extension).
+        fmt: Export format string ("image/png" or "image/jpeg").
+
+    Returns:
+        None
     """
     desired_fmt = "jpeg" if fmt == "image/jpeg" else "png"
     msg_fmt = msg.format.lower()
@@ -31,6 +39,17 @@ def export_raw_image(msg, path, fmt="image/png"):
     """
     Export a raw Image ROS message to PNG or JPEG.
     Convert supported encodings (bgr8, rgb8, bgra8) to BGR, then write with OpenCV; error on unsupported formats.
+
+    Args:
+        msg: Image ROS message instance.
+        path: Output file path (without extension).
+        fmt: Export format string ("image/png" or "image/jpeg").
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If encoding or export format is unsupported.
     """
     if msg.encoding in ("bgr8", "rgb8", "bgra8"):
         img_array = np.frombuffer(msg.data, np.uint8).reshape(msg.height, msg.width, -1)

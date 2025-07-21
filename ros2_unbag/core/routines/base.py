@@ -9,6 +9,13 @@ class ExportRoutine:
     def __init__(self, msg_types, formats):
         """
         Register an export routine for the specified message types and formats.
+
+        Args:
+            msg_types: Message type string or list of message types.
+            formats: List of supported export formats.
+
+        Returns:
+            None
         """
         self.msg_types = msg_types if isinstance(msg_types,
                                                  list) else [msg_types]
@@ -18,6 +25,12 @@ class ExportRoutine:
     def __call__(self, func):
         """
         Decorate a function to assign it as this routine's export handler.
+
+        Args:
+            func: Function to be used as the export handler.
+
+        Returns:
+            ExportRoutine: The routine instance itself.
         """
         self.func = func
         return self
@@ -26,6 +39,12 @@ class ExportRoutine:
     def register(cls, routine):
         """
         Add a routine to the registry under each of its message types.
+
+        Args:
+            routine: ExportRoutine instance to register.
+
+        Returns:
+            None
         """
         for msg_type in routine.msg_types:
             cls.registry[msg_type].append(routine)
@@ -34,6 +53,12 @@ class ExportRoutine:
     def get_formats(cls, msg_type):
         """
         Return all supported formats for a given message type, including catch-all formats.
+
+        Args:
+            msg_type: Message type string.
+
+        Returns:
+            list: List of supported format strings.
         """
         supported_formats = []
         if msg_type in cls.registry:
@@ -46,6 +71,13 @@ class ExportRoutine:
     def get_handler(cls, msg_type, fmt):
         """
         Retrieve the export handler function for a message type and format, falling back to catch-all if needed.
+
+        Args:
+            msg_type: Message type string.
+            fmt: Export format string.
+
+        Returns:
+            function or None: Export handler function or None if not found.
         """
         for r in cls.registry.get(msg_type, []):
             if fmt in r.formats:
@@ -58,6 +90,12 @@ class ExportRoutine:
     def set_catch_all(cls, formats):
         """
         Decorator to register a fallback export routine for any message type with specified formats.
+
+        Args:
+            formats: List of supported export formats.
+
+        Returns:
+            function: Decorator function.
         """
         def decorator(func):
             cls.catch_all = ExportRoutine(msg_types=[], formats=formats)

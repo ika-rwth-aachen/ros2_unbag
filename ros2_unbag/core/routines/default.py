@@ -14,6 +14,14 @@ def export_generic(msg, path, fmt="text/yaml"):
     """
     Generic export handler supporting JSON, YAML, and CSV formats.
     Serialize the message, determine file extension, and append to the given path with file locking.
+
+    Args:
+        msg: ROS message instance to export.
+        path: Output file path (without extension).
+        fmt: Export format string ("text/yaml", "text/json", "text/csv").
+
+    Returns:
+        None
     """
     
     # Build timestamp
@@ -56,6 +64,14 @@ def write_line(file, line, filetype):
     """
     Write a serialized message line to the file.
     For JSON/YAML, write the string; for CSV, ensure header and write the row.
+
+    Args:
+        file: File object to write to.
+        line: String for JSON/YAML, or [header, values] list for CSV.
+        filetype: Export format string.
+
+    Returns:
+        None
     """
 
     # Simple writing for json and yaml
@@ -74,6 +90,13 @@ def add_csv_header(file, header):
     """
     Ensure the CSV file starts with the correct header.
     If missing or different, prepend the provided header row.
+
+    Args:
+        file: File object to write to.
+        header: List of column names for the CSV header.
+
+    Returns:
+        None
     """
     file.seek(0)
     reader = csv.reader(file)
@@ -92,6 +115,14 @@ def add_csv_header(file, header):
 def flatten(d, parent_key='', sep='.'):
     """
     Flatten a nested dict into a single-level dict with compound keys separated by sep.
+
+    Args:
+        d: Dictionary to flatten.
+        parent_key: Prefix for keys (used in recursion).
+        sep: Separator string for compound keys.
+
+    Returns:
+        dict: Flattened dictionary.
     """
     items = []
     for k, v in d.items():
