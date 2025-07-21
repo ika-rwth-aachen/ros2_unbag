@@ -40,7 +40,10 @@ class TopicSelector(QtWidgets.QWidget):
                 h_layout.setContentsMargins(0, 0, 0, 0)
 
                 checkbox = QtWidgets.QCheckBox()
+                checkbox.setCursor(QtCore.Qt.PointingHandCursor)
                 label = QtWidgets.QLabel(topic)
+                label.setCursor(QtCore.Qt.PointingHandCursor)
+                label.mousePressEvent = self._make_label_toggle_cb(checkbox)
                 count_label = QtWidgets.QLabel(str(self.message_counts.get(topic, 0))+ " Messages")
                 count_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
@@ -72,6 +75,14 @@ class TopicSelector(QtWidgets.QWidget):
         self.select_all_state = not self.select_all_state
         self.select_all_button.setText("Deselect All" if not self.select_all_state else "Select All")
 
+    def _make_label_toggle_cb(self, checkbox):
+        """
+        Creates a callback function that toggles the state of the given checkbox.
+        """
+        def toggle(_):
+            checkbox.toggle()
+        return toggle
+    
     def get_selected_topics(self):
         """
         Return a list of topics whose checkboxes are currently checked.
