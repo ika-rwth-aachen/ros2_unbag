@@ -10,3 +10,4 @@ jobs:
           base-image: rwthika/ros2:jazzy
           command: ros2 unbag
           target: dev,run
+          enable-slim: false
