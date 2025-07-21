@@ -17,12 +17,6 @@ For high‑throughput workflows, *ros2 unbag* can spawn multiple worker processe
 
 Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to turn bag files into the data you need.
 
-> [!IMPORTANT]  
-> This repository is open-sourced and maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/).  
-> We cover a wide variety of research topics including ROS and ROS 2 tooling within our [*Vehicle Intelligence & Automated Driving*](https://www.ika.rwth-aachen.de/en/competences/fields-of-research/vehicle-intelligence-automated-driving.html) domain.  
-> If you would like to learn more about how we can support your automated driving or robotics efforts, feel free to reach out to us!  
-> :email: ***opensource@ika.rwth-aachen.de***
-
 ## Table of Contents
 
 - [Features](#features)  
@@ -42,6 +36,7 @@ Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to tu
   - [last](#last)  
   - [nearest](#nearest)  
 - [CPU Utilization](#cpu-utilization)  
+- [Acknowledgements](#acknowledgements)
 
 ## Features
 
@@ -320,3 +315,20 @@ The `nearest` resampling type will listen for the master topic and export it alo
 ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
 
 ⚠️ Note: Parallel exports can interleave messages in a single output file. For strict, in‑order output, run with --cpu-percentage 0 to force single‑threaded processing.
+
+## Acknowledgements
+This research is accomplished within the following research projects:
+
+| Project | Funding Source |      | 
+|---------|----------------|:----:|
+| <a href="https://www.ika.rwth-aachen.de/de/kompetenzen/projekte/automatisiertes-fahren/4-cad.html"><img src="https://www.ika.rwth-aachen.de/images/projekte/4cad/4cad-logo.svg" alt="4-CAD" height="40"/></a> | Funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) DFG Proj. Nr. 503852364 | <p align="center"><img src="https://www.ika.rwth-aachen.de/images/foerderer/dfg.svg" height="50"/></p> |
+| <a href="https://iexoddus-project.eu/"><img src="https://www.ika.rwth-aachen.de/images/projekte/iexoddus/iEXODDUS%20Logo%20color.svg" alt="iEXXODUS" height="40"/></a> | Funded by the European Union’s Horizon Europe Research and Innovation Programme under Grant Agreement No 101146091 | <p align="center"><img src="https://www.ika.rwth-aachen.de/images/foerderer/eu.svg" height="50"/></p> |
+| <a href="https://synergies-ccam.eu/"><img src="https://www.ika.rwth-aachen.de/images/projekte/synergies/SYNERGIES_Logo%201.png" alt="SYNERGIES" height="40"/></a> | Funded by the European Union’s Horizon Europe Research and Innovation Programme under Grant Agreement No 101146542 | <p align="center"><img src="https://www.ika.rwth-aachen.de/images/foerderer/eu.svg" height="50"/></p> |
+
+## Notice 
+
+> [!IMPORTANT]  
+> This repository is open-sourced and maintained by the [**Institute for Automotive Engineering (ika) at RWTH Aachen University**](https://www.ika.rwth-aachen.de/).  
+> We cover a wide variety of research topics within our [*Vehicle Intelligence & Automated Driving*](https://www.ika.rwth-aachen.de/en/competences/fields-of-research/vehicle-intelligence-automated-driving.html) domain.  
+> If you would like to learn more about how we can support your automated driving or robotics efforts, feel free to reach out to us!  
+> :email: ***opensource@ika.rwth-aachen.de***
