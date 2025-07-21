@@ -1,29 +1,44 @@
 import csv
+from datetime import datetime
 import fcntl
 import json
+import textwrap
 
 from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
 
 from ros2_unbag.core.routines.base import ExportRoutine
 
 
-@ExportRoutine.set_catch_all(["text/json", "text/yaml", "text/csv"])
-def export_generic(msg, path, fmt="text/json"):
+@ExportRoutine.set_catch_all(["text/yaml", "text/json", "text/csv"])
+def export_generic(msg, path, fmt="text/yaml"):
     """
     Generic export handler supporting JSON, YAML, and CSV formats.
     Serialize the message, determine file extension, and append to the given path with file locking.
     """
+    
+    # Build timestamp
+    try:
+        timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
+                                            msg.header.stamp.nanosec * 1e-9)
+    except AttributeError:
+        # Fallback timestamp (receive time)
+        timestamp = datetime.fromtimestamp(msg.stamp.sec +
+                                            msg.stamp.nanosec * 1e-9)
+        
     if fmt == "text/json":
         serialized = message_to_ordereddict(msg)
-        serialized_line = json.dumps(serialized, default=str) + "\n"
+        serialized_with_timestamp = {str(timestamp): serialized}
+        serialized_line = json.dumps(serialized_with_timestamp, default=str) + "\n"
         file_ending = ".json"
     elif fmt == "text/yaml":
-        serialized_line = message_to_yaml(msg) + "---\n"
+        yaml_content = message_to_yaml(msg)
+        indented_yaml = textwrap.indent(yaml_content, prefix="  ")
+        serialized_line = f"{timestamp}:\n{indented_yaml}\n"
         file_ending = ".yaml"
     elif fmt in ["text/csv", "table/csv"]:
         flat_data = flatten(message_to_ordereddict(msg))
-        values = list(flat_data.values())
-        header = list(flat_data.keys())
+        header = ["timestamp", *flat_data.keys()]
+        values = [str(timestamp), *flat_data.values()]
         file_ending = ".csv"
 
     # Save the serialized message to a file - if the filename is constant, messages will be appended
