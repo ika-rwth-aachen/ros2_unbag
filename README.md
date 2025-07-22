@@ -60,6 +60,13 @@ source /opt/ros/<distro>/setup.bash
 
 Replace `<distro>` with your ROS 2 distribution.
 
+Install the required apt dependencies:
+
+```bash
+sudo apt update
+sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0 rosbag2_py 
+````
+
 ### From PyPI (via pip)
 
 ```bash
