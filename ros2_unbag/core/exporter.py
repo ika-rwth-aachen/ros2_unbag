@@ -75,6 +75,33 @@ class Exporter:
         self.queue_maxsize = self.num_workers * 2
         self._enqueued_files = set()
 
+        # Pre-fetch export handlers and processors
+        self.topic_handlers = {}
+        self.topic_processors = {}
+
+        for topic, cfg in self.config.items():
+            fmt = cfg['format']
+            topic_type = self.topic_types[topic]
+
+            # Export handler
+            self.topic_handlers[topic] = ExportRoutine.get_handler(topic_type, fmt)
+
+            # Optional processor
+            if 'processor' in cfg:
+                proc_name = cfg['processor']
+                proc_args = cfg.get('processor_args', {})
+                required_args = Processor.get_required_args(topic_type, proc_name)
+                missing_args = [arg for arg in required_args if arg not in proc_args]
+                if missing_args:
+                    raise ValueError(
+                        f"Missing required arguments for processor '{proc_name}': {', '.join(missing_args)}"
+                    )
+                proc_handler = Processor.get_handler(topic_type, proc_name)
+                self.topic_processors[topic] = (proc_handler, proc_args)
+            else:
+                self.topic_processors[topic] = None
+
+
     def run(self):
         """
         Orchestrate parallel export: configure reader, start producer, workers, and monitor.
@@ -450,28 +477,30 @@ class Exporter:
         self.index_map[topic] += 1
 
         topic_base = topic.strip("/").replace("/", "_")
-
-        # Build timestamp for filename
-        try:
-            timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
-                                               msg.header.stamp.nanosec * 1e-9)
-        except AttributeError:
-            # Fallback timestamp (receive time)
-            timestamp = datetime.fromtimestamp(msg.stamp.sec +
-                                               msg.stamp.nanosec * 1e-9)
-
+        
         # Apply naming pattern
         replacements = {
             "%name": topic_base,
-            "%index": str(index),
-            "%ros_timestamp": self._format_ros_timestamp(msg.header) if hasattr(msg, "header") else ""
+            "%index": str(index)
         }
 
         for key, value in replacements.items():
             naming = naming.replace(key, value)
             path = path.replace(key, value)
 
-        filename = timestamp.strftime(naming)
+        # Check if the naming still contains a placeholder
+        if "%" in naming:
+            # Build timestamp for filename
+            try:
+                ts_float = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            except AttributeError:
+                # Fallback timestamp (receive time)
+                ts_float = msg.stamp.sec + msg.stamp.nanosec * 1e-9
+            timestamp = datetime.fromtimestamp(ts_float)
+            filename = timestamp.strftime(naming)
+        else:
+            filename = naming
+
         os.makedirs(path, exist_ok=True)
         full_path = os.path.join(path, filename)
 
@@ -518,34 +547,18 @@ class Exporter:
                     break
                 topic, msg, full_path, fmt, is_first = task
 
-                # Check if the topic has a processor defined
-                if 'processor' in self.config[topic]:
-                    topic_type = self.topic_types[topic]
-                    handler = Processor.get_handler(
-                        topic_type, self.config[topic]['processor'])
-                    if handler:
-                        processor_args = self.config[topic].get(
-                            'processor_args', {})
-                        required_args = Processor.get_required_args(
-                            topic_type, self.config[topic]['processor'])
+                # Use pre-fetched processor if available
+                processor = self.topic_processors.get(topic)
+                if processor:
+                    handler, args = processor
+                    msg = handler(msg=msg, **args)
 
-                        # Check if all required arguments are provided
-                        missing_args = [
-                            arg for arg in required_args
-                            if arg not in processor_args
-                        ]
-                        if missing_args:
-                            raise ValueError(
-                                f"Missing required arguments for processor '{self.config[topic]['processor']}': {', '.join(missing_args)}"
-                            )
-
-                        msg = handler(msg=msg, **processor_args)
-
-                topic_type = self.topic_types[topic]
-                handler = ExportRoutine.get_handler(topic_type, fmt)
-                if handler:
-                    handler(msg, full_path, fmt, is_first)
+                # Use pre-fetched export handler
+                export_handler = self.topic_handlers[topic]
+                if export_handler:
+                    export_handler(msg, full_path, fmt, is_first)
                     progress_queue.put(1)
+
             except Exception as e:
                 # Handle exceptions during export
                 self.exception_queue.put((type(e).__name__, str(e)))

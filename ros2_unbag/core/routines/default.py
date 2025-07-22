@@ -59,10 +59,7 @@ def export_generic_multi_file(msg, path, fmt="text/yaml@multi_file", is_first=Tr
         file_ending = ".csv"
 
     # Save the serialized message to a file
-    with open(path + file_ending, "w+") as f:
-        # Clear before writing
-        f.seek(0)
-        f.truncate()
+    with open(path + file_ending, "w") as f:
         # Write the serialized line to the file
         write_line(f, serialized_line if fmt != "table/csv@multi_file" else [header, values], fmt, is_first)
 
@@ -129,8 +126,7 @@ def serialize_message_with_timestamp(msg, fmt, timestamp):
         return serialized_line
     elif fmt == "yaml":
         yaml_content = message_to_yaml(msg)
-        indented_yaml = textwrap.indent(yaml_content, prefix="  ")
-        serialized_line = f"{timestamp}:\n{indented_yaml}\n"
+        serialized_line = f"{timestamp}:\n{yaml_content}\n"
         return serialized_line
     elif fmt == "csv":
         flat_data = flatten(message_to_ordereddict(msg))

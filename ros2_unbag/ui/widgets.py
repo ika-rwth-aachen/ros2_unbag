@@ -301,8 +301,7 @@ class ExportOptions(QtWidgets.QWidget):
             "Naming and paths supports placeholders:\n"
             "  %name   → topic name without slashes\n"
             "  %index  → message index (starting from 0)\n"
-            "  %Y, %m, %d, %H, %M, %S  → timestamp components from message header\n"
-            "  %ros_timestamp → seconds_nanoseconds from message header\n"
+            "  %Y, %m, %d, %H, %M, %S  → timestamp components from message header or receive-time if there is no header\n"
             "    (e.g. %Y-%m-%d_%H-%M-%S → 2025-04-14_12-30-00)"
         )
         note.setWordWrap(True)
