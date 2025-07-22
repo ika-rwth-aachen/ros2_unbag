@@ -28,7 +28,7 @@ jobs:
       run: |
         apt-get update
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-          libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0 rosbag2_py 
+          libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
         rm -rf /var/lib/apt/lists/*
     - name: Install pypa/build
       run: python3 -m pip install --user build

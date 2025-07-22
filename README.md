@@ -64,7 +64,7 @@ Install the required apt dependencies:
 
 ```bash
 sudo apt update
-sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0 rosbag2_py 
+sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
 ````
 
 ### From PyPI (via pip)
