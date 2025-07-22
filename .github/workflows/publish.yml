@@ -20,7 +20,7 @@ jobs:
       options: --user root
     strategy:
       matrix:
-        package: [ros2_unbag]
+        package: [.]
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
