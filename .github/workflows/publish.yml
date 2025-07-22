@@ -36,7 +36,7 @@ jobs:
           rm -rf /var/lib/apt/lists/*
 
       - name: Install build tooling
-        run: python3 -m pip install -U pip build twine
+        run: python3 -m pip install -U build twine
 
       - name: Build wheel & sdist
         run: python3 -m build --sdist --wheel --outdir dist/ .
