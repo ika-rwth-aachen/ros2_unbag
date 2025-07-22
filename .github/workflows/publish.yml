@@ -13,7 +13,7 @@ on:
 
 jobs:
   publish:
-    name: Publish ${{ matrix.package }}
+    name: Publish ros2_unbag
     runs-on: ubuntu-latest
     container: 
       image: rwthika/ros2:jazzy
@@ -35,7 +35,7 @@ jobs:
     - name: Build wheel and tarball
       run: python3 -m build --sdist --wheel --outdir dist/ ${{ matrix.package }}
     - name: Publish to TestPyPI
-      uses: pypa/gh-action-pypi-publish@v1.12.4
+      uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
         repository-url: https://test.pypi.org/legacy/
