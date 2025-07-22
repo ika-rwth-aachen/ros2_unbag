@@ -57,7 +57,9 @@ class Exporter:
         self.progress_callback = progress_callback
 
         self.index_map = {t: 0 for t in self.config}
-        self.sequential_topics = [t for t, c in self.config.items() if c.get('sequential_export', False)]
+        self.sequential_topics = [t for t, c in self.config.items()
+            if ExportRoutine.get_mode(self.topic_types[t], c['format']) == ExportMode.SINGLE_FILE
+        ]
 
         # one queue for parallel topics
         self.parallel_q = mp.Queue()
@@ -405,8 +407,9 @@ class Exporter:
         # for the parallel pool
         for _ in range(self.num_parallel_workers):
             self.parallel_q.put(None)
-        # for each seqential‑topic worker
+        # for each sequential-topic worker
         for topic in self.sequential_topics:
+            self.parallel_q.put(None)
             self.seq_queues[topic].put(None)
 
     def _print_drop_summary(self, dropped_frames):
@@ -481,12 +484,8 @@ class Exporter:
         export_mode = ExportRoutine.get_mode(topic_type, fmt)
         sequential = topic in self.sequential_topics
         if export_mode == ExportMode.MULTI_FILE and not is_first:
-            self.logger.warning(f"You chose a non-changing file name for topic '{topic}' "
-                  f"and format '{fmt}'. This will overwrite the previous file: {full_path}")
-        if (export_mode == ExportMode.SINGLE_FILE or (export_mode == ExportMode.SINGLE_OR_MULTI_FILE and not is_first)) and not sequential:
-            self.logger.warning(f"You chose a single-file export for topic '{topic}' "
-                  f"and format '{fmt}'. This will create a single file, "
-                  f"but you are in parallel export mode, sequential export is not guaranteed.")
+            raise ValueError(f"Cannot use a non-changing file name for topic '{topic}' "
+                             f"and format '{fmt}'. This will overwrite the previous file: {full_path}")
 
         task = (topic, msg, full_path, fmt, is_first)
         if sequential:

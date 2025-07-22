@@ -142,7 +142,7 @@ In addition to these required flags, there are some optional flags. See the tabl
 | Flag                        | Value/Format                             | Description                                                                                               | Usage                              | Default        |   |
 | --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
 | **`bag`**                   | `<path>`                                 | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
-| **`-e, --export`**          | `/topic:format[:subdir:sequential_flag]` | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
+| **`-e, --export`**          | `/topic:format[:subdir]`                 | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
 | **`-o, --output-dir`**      | `<directory>`                            | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
 | **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
 | **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
@@ -157,8 +157,6 @@ In addition to these required flags, there are some optional flags. See the tabl
 | **`--uninstall-routine`**   | (flag)                                   | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
 | **`--uninstall-processor`** | (flag)                                   | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
 | **`--help`**                | (flag)                                   | Show usage information and exit.                                                                          | Standalone                         | -              |   |
-
-⚠️ For `[text/csv]`, `[text/json]` or `[text/yaml]` exports, any changing name pattern (e.g. `%index` or date/time placeholders) will produce a separate file per message. To bundle all messages into one file, use a fixed filename (omit `%index` and any timestamp placeholders).
 
 ⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
 
@@ -236,7 +234,7 @@ The message type, format and mode are defined in the decorator. The `ExportRouti
 
 - `msg_types`: The message types that this routine can handle. (Can be a single type or a list of types.)
 - `formats`: The output formats that this routine supports. (Can be a single format or a list of formats.)
-- `mode`: Specifies export mode — SINGLE_FILE, MULTI_FILE, or SINGLE_OR_MULTI_FILE. This will only be used to determine if multiprocessing is possible. The above example shows a routine that exports to multiple files, one for each point cloud message. If you want to export to a single file, you need to handle the file writing logic yourself, e.g., by appending to the file in each call.
+- `mode`: Specifies the export mode — SINGLE_FILE or MULTI_FILE. This determines whether the routine is designed for exporting data into a single file or multiple files. While this setting affects parallelization and naming conventions, you must implement the logic for single file exports yourself if you choose SINGLE_FILE mode (e.g., appending data to the same file during each function call).
 
 You can import your own routines permanently by calling 
 ```bash 
@@ -330,8 +328,6 @@ The `nearest` resampling type will listen for the master topic and export it alo
 
 ## CPU utilization
 ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
-
-⚠️ Note: Parallel exports can interleave messages in a single output file. For strict, in‑order output, you can use the sequential_flag option in `--export`, which will put the messages of this topic onto a single worker process - essentially disabling parallel processing for this topic. All other topics will still be processed in parallel.
 
 ## Acknowledgements
 This research is accomplished within the following research projects:
