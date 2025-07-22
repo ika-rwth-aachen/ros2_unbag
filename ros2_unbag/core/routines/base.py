@@ -21,14 +21,21 @@
 # SOFTWARE.
 
 from collections import defaultdict
+from enum import Enum, auto
 
 
+class ExportMode(Enum):
+    SINGLE_FILE = auto()
+    MULTI_FILE = auto()
+    SINGLE_OR_MULTI_FILE = auto()
+    
+    
 class ExportRoutine:
     # Registry for export routines by message type and format
     registry = defaultdict(list)
     catch_all = None  # fallback routine if no specific match is found
 
-    def __init__(self, msg_types, formats):
+    def __init__(self, msg_types, formats, mode=ExportMode.SINGLE_OR_MULTI_FILE):
         """
         Register an export routine for the specified message types and formats.
 
@@ -42,6 +49,7 @@ class ExportRoutine:
         self.msg_types = msg_types if isinstance(msg_types,
                                                  list) else [msg_types]
         self.formats = formats
+        self.mode = mode
         self.__class__.register(self)
 
     def __call__(self, func):
@@ -107,6 +115,25 @@ class ExportRoutine:
         if cls.catch_all and fmt in cls.catch_all.formats:
             return cls.catch_all.func
         return None
+    
+    @classmethod
+    def get_mode(cls, msg_type, fmt):
+        """
+        Get the export mode for a specific message type and format.
+
+        Args:
+            msg_type: Message type string.
+            fmt: Export format string.
+
+        Returns:
+            ExportMode: The export mode for the given message type and format.
+        """
+        for r in cls.registry.get(msg_type, []):
+            if fmt in r.formats:
+                return r.mode
+        if cls.catch_all and fmt in cls.catch_all.formats:
+            return cls.catch_all.mode
+        return ExportMode.SINGLE_OR_MULTI_FILE
 
     @classmethod
     def set_catch_all(cls, formats):
@@ -120,7 +147,7 @@ class ExportRoutine:
             function: Decorator function.
         """
         def decorator(func):
-            cls.catch_all = ExportRoutine(msg_types=[], formats=formats)
+            cls.catch_all = ExportRoutine(msg_types=[], formats=formats, mode=ExportMode.SINGLE_OR_MULTI_FILE)
             cls.catch_all.func = func
             return func
 

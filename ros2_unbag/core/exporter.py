@@ -22,12 +22,13 @@
 
 from collections import defaultdict, deque
 from datetime import datetime
+import logging
 import multiprocessing as mp
 import os
 import threading
 
 from ros2_unbag.core.processors.base import Processor
-from ros2_unbag.core.routines.base import ExportRoutine
+from ros2_unbag.core.routines.base import ExportRoutine, ExportMode
 
 
 class Exporter:
@@ -47,6 +48,9 @@ class Exporter:
         Returns:
             None
         """
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+
         self.bag_reader = bag_reader
         self.config = export_config
         self.topic_types = self.bag_reader.topic_types
@@ -63,7 +67,7 @@ class Exporter:
         self.num_workers = max(1, int(mp.cpu_count() * global_config["cpu_percentage"] * 0.01))
         self.num_parallel_workers = max(1, self.num_workers - len(self.sequential_topics))
 
-        print(f"Using {self.num_workers} workers for export, "
+        self.logger.info(f"Using {self.num_workers} workers for export, "
               f"{self.num_parallel_workers} for parallel topics, "
               f"{len(self.sequential_topics)} for sequential topics.")
         self.queue_maxsize = self.num_workers * 2
@@ -139,7 +143,7 @@ class Exporter:
                     break
 
         except KeyboardInterrupt:
-            print("Keyboard interrupt detected. Cleaning up...")
+            self.logger.warning("Keyboard interrupt detected. Cleaning up...")
             producer.terminate()
             for w in workers:
                 w.terminate()
@@ -215,8 +219,8 @@ class Exporter:
         for topic, cfg in self.config.items():
             rcfg = cfg.get('resample_config')
             if rcfg and rcfg.get('is_master', False):
-                print(
-                    f"Warning: Topic '{topic}' is marked as master. Remember, that only one master topic is supported."
+                self.logger.info(
+                    f"Topic '{topic}' is marked as master. Remember, that only one master topic is supported."
                 )
                 assoc_strategy = rcfg.get('association', 'last')
                 discard_eps = rcfg.get('discard_eps')
@@ -417,9 +421,9 @@ class Exporter:
         """
         if not dropped_frames:
             return
-        print("\nDropped frames per topic:")
+        self.logger.info("\nDropped frames per topic:")
         for topic, count in dropped_frames.items():
-            print(f"  {topic}: {count}")
+            self.logger.info(f"  {topic}: {count}")
 
     def _enqueue_export_task(self, topic, msg):
         """
@@ -462,6 +466,7 @@ class Exporter:
 
         for key, value in replacements.items():
             naming = naming.replace(key, value)
+            path = path.replace(key, value)
 
         filename = timestamp.strftime(naming)
         os.makedirs(path, exist_ok=True)
@@ -471,8 +476,20 @@ class Exporter:
         is_first = full_path not in self._enqueued_files
         self._enqueued_files.add(full_path)
 
+        # Warn the user if the export routine is single-file and the file already exists
+        topic_type = self.topic_types[topic]
+        export_mode = ExportRoutine.get_mode(topic_type, fmt)
+        sequential = topic in self.sequential_topics
+        if export_mode == ExportMode.MULTI_FILE and not is_first:
+            self.logger.warning(f"You chose a non-changing file name for topic '{topic}' "
+                  f"and format '{fmt}'. This will overwrite the previous file: {full_path}")
+        if (export_mode == ExportMode.SINGLE_FILE or (export_mode == ExportMode.SINGLE_OR_MULTI_FILE and not is_first)) and not sequential:
+            self.logger.warning(f"You chose a single-file export for topic '{topic}' "
+                  f"and format '{fmt}'. This will create a single file, "
+                  f"but you are in parallel export mode, sequential export is not guaranteed.")
+
         task = (topic, msg, full_path, fmt, is_first)
-        if topic in self.sequential_topics:
+        if sequential:
             self.seq_queues[topic].put(task)
         else:
             self.parallel_q.put(task)
@@ -557,7 +574,7 @@ class Exporter:
                     self.progress_callback(done, self.max_progress_count)
                 except Exception:
                     # Handle exceptions in progress callback
-                    print(f"Error in progress callback: {done}/{self.max_progress_count}")
+                    self.logger.error(f"Error in progress callback: {done}/{self.max_progress_count}")
                     pass
 
     def _format_ros_timestamp(self, header):

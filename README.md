@@ -178,8 +178,8 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
   "bag_path": "rosbag/data.mcap",
   "output_dir": "./out",
   "exports": [
-    { "topic": "/cam/image_raw", "format": "image/png", "subdir": "cam" },
-    { "topic": "/imu", "format": "text/csv" }
+    { "topic": "/cam/image_raw", "format": "image/png", "subdir": "%name" },
+    { "topic": "/imu", "format": "text/csv", "subdir": "%name" }
   ],
   "resample": [
     { "master": "/cam/image_raw", "type": "nearest", "discard_eps": 0.05 }
@@ -212,7 +212,7 @@ Routines are defined like this:
 from ros2_unbag.core.routines.base import ExportRoutine                       # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])             # define the message type and output format, each of these can be a list of formats
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)  
 def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):    # define the export function, the name of the function does not matter
     """
     Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
@@ -231,6 +231,12 @@ def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):    # 
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")
 ```
+
+The message type, format and mode are defined in the decorator. The `ExportRoutine` decorator registers the function as an export routine for the specified message type and format. It has the following attributes:
+
+- `msg_types`: The message types that this routine can handle. (Can be a single type or a list of types.)
+- `formats`: The output formats that this routine supports. (Can be a single format or a list of formats.)
+- `mode`: Specifies export mode — SINGLE_FILE, MULTI_FILE, or SINGLE_OR_MULTI_FILE. This will only be used to determine if multiprocessing is possible. The above example shows a routine that exports to multiple files, one for each point cloud message. If you want to export to a single file, you need to handle the file writing logic yourself, e.g., by appending to the file in each call.
 
 You can import your own routines permanently by calling 
 ```bash 
@@ -259,7 +265,7 @@ You can define your own processors like this:
 from ros2_unbag.core.processors.base import Processor               # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@Processor("sensor_msgs/msg/CompressedImage", ["recolor"])          # define the message type and the processor name
+@Processor("sensor_msgs/msg/CompressedImage", ["recolor"])
 def recolor_compressed_image(msg, color_map):                       # define the processor function 
     # the name of the function does not matter
     # the first parameter must be the message to process
@@ -289,6 +295,10 @@ def recolor_compressed_image(msg, color_map):                       # define the
     return msg                                                      # return the modified message
 
 ```
+The message type and processor name are defined in the decorator. The `Processor` decorator registers the function as a processor for the specified message type and name. It has the following attributes:
+
+- `msg_types`: The message types that this processor can handle. (Can be a single type or a list of types.)
+- `name`: The name of the processor, which is used to identify it in the system.
 
 You can import your own processors by calling 
 ```bash

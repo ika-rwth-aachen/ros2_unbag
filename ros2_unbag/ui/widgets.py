@@ -26,7 +26,7 @@ import os
 from PySide6 import QtCore, QtWidgets
 
 from ros2_unbag.core.processors import Processor
-from ros2_unbag.core.routines import ExportRoutine
+from ros2_unbag.core.routines import ExportRoutine, ExportMode
 
 
 class TopicSelector(QtWidgets.QWidget):
@@ -248,12 +248,26 @@ class ExportOptions(QtWidgets.QWidget):
             self.all_path_edits.append(abs_path_edit)
 
             # Subdirectory and naming scheme
-            rel_path_edit = QtWidgets.QLineEdit()
-            name_scheme_edit = QtWidgets.QLineEdit("%name_%index")
+            rel_path_edit = QtWidgets.QLineEdit("%name")
+            name_scheme_edit = QtWidgets.QLineEdit()
 
             # Sequential export checkbox
             sequential_export_checkbox = QtWidgets.QCheckBox(
                 "No parallel writes")
+            
+            # Dynamic update based on format selection
+            def update_naming_and_checkbox(fmt, name_edit=name_scheme_edit, checkbox=sequential_export_checkbox, t_type=topic_type):
+                mode = ExportRoutine.get_mode(t_type, fmt)
+                if mode == ExportMode.SINGLE_FILE:
+                    name_edit.setText("%name")
+                    checkbox.setChecked(True)
+                else:
+                    name_edit.setText("%name_%index")
+                    checkbox.setChecked(False)
+
+            # Connect format selection to update naming and checkbox
+            fmt_combo.currentTextChanged.connect(update_naming_and_checkbox)
+            update_naming_and_checkbox(fmt_combo.currentText())
 
             # Master checkbox (mutually exclusive)
             is_master_check = QtWidgets.QCheckBox(
@@ -291,7 +305,7 @@ class ExportOptions(QtWidgets.QWidget):
 
         # ────────── Help ──────────
         note = QtWidgets.QLabel(
-            "Naming supports placeholders:\n"
+            "Naming and paths supports placeholders:\n"
             "  %name   → topic name without slashes\n"
             "  %index  → message index (starting from 0)\n"
             "  %Y, %m, %d, %H, %M, %S  → timestamp components from message header\n"
