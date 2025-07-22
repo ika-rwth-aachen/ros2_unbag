@@ -1,0 +1,50 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches:
+      - main
+      - sequential_writes
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    container: 
+      image: rwthika/ros2:jazzy
+      options: --user root
+    strategy:
+      matrix:
+        package: [ros2_unbag]
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install system deps
+      run: |
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0 rosbag2_py 
+        rm -rf /var/lib/apt/lists/*
+    - name: Install pypa/build
+      run: python3 -m pip install --user build
+    - name: Build wheel and tarball
+      run: python3 -m build --sdist --wheel --outdir dist/ ${{ matrix.package }}
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@v1.12.4
+      with:
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        repository-url: https://test.pypi.org/legacy/
+        skip-existing: true
+        verbose: true
+    #- name: Publish to PyPI
+    #  if: startsWith(github.ref, 'refs/tags')
+    #  uses: pypa/gh-action-pypi-publish@v1.12.4
+    #  with:
+    #    password: ${{ secrets.PYPI_API_TOKEN }}
+    #    skip-existing: true
+    #    verbose: true
