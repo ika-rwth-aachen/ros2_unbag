@@ -1,4 +1,4 @@
-<img src="ros2_unbag/ui/title.png" height=130 align="right">
+<img src="ros2_unbag/ui/assets/badge.svg" height=130 align="right">
 
 # *ros2 unbag* - fast ROS 2 bag export for any format
 
