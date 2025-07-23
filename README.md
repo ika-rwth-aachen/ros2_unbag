@@ -334,7 +334,7 @@ The `last` resampling type will listen for the master topic. As soon as a messag
 The `nearest` resampling type will listen for the master topic and export it along with the (temporally) nearest message of the other topics that were published in the time range of the master topic message. This resampling strategy is only usable with an `discard_eps` value, which defines the maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
 
 ## CPU utilization
-ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
+*ros2 unbag* uses multi-processing to export messages in parallel. By default, full parallelization is applied only when exporting to multiple files. For single-file outputs, it uses one process per file to ensure deterministic ordering, which still utilizes multi-processing but with limited concurrency. You can control the number of processes by setting the --cpu-percentage option. The default value is 80%, meaning the tool will use 80% of available CPU cores for processing. Adjust this value to control CPU utilization during export.
 
 ## Acknowledgements
 This research is accomplished within the following research projects:
