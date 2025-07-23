@@ -5,11 +5,13 @@
 <p align="center">
   <img src="https://img.shields.io/github/license/ika-rwth-aachen/ros2_unbag"/>
   <a href="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml"><img src="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml/badge.svg"/></a>
+  <a href="https://pypi.org/project/ros2-unbag/"><img src="https://img.shields.io/pypi/v/ros2-unbag?label=PyPI"/></a>
+  <a href="https://pypi.org/project/ros2-unbag/"><img src="https://img.shields.io/pypi/dm/ros2-unbag?color=blue&label=PyPI%20downloads"/></a>
 </p>
 
 *ros2 unbag* is a ROS 2 CLI plugin with optional GUI for extracting selected topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
 
-It comes with export routines for [common message types](#export-routines) (sensor data, point clouds, images). You need a special file format or message type? Add your own export plugin for any ROS 2 message or format, and chain custom processors to filter, transform or enrich messages (e.g. drop fields, compute derived values, remap frames).
+It comes with export routines for [all message types](#export-routines) (sensor data, point clouds, images). You need a special file format or message type? Add your [own export plugin](#custom-export-routines) for any ROS 2 message or format, and chain custom processors to filter, transform or enrich messages (e.g. drop fields, compute derived values, remap frames).
 
 Optional resampling synchronizes your data streams around a chosen master topic—aligning each other topic either to its last‑known sample (“last”) or to the temporally closest sample (“nearest”)—so you get a consistent sample count in your exports.
 
@@ -30,7 +32,8 @@ Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to tu
   - [GUI Mode](#gui-mode)  
   - [CLI Mode](#cli-mode)  
 - [Config File](#config-file)  
-- [Export Routines](#export-routines)  
+- [Export Routines](#export-routines)
+  - [Custom Export Routines](#custom-export-routines)
 - [Processors](#processors)  
 - [Resampling](#resampling)  
   - [last](#last)  
@@ -199,16 +202,27 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
 
 ## Export Routines 
 
-Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for common message types and formats, such as:
+Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for **all** message types and formats, such as:
 
 | Identifier(s)                                       | Topic(s)                                                         | Description                                                                                                                                                                                          |
 | --------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **\[image/png]**, **\[image/jpeg]**                 | • `sensor_msgs/msg/Image`<br>• `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG or PNG.                                                    |
-| **\[pointcloud/pkl]**                               | `sensor_msgs/msg/PointCloud2`                                    | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                                                                                                 |
-| **\[pointcloud/xyz]**                               | `sensor_msgs/msg/PointCloud2`                                    | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.                                                                      |
-| **\[pointcloud/pcd]**                               | `sensor_msgs/msg/PointCloud2`                                    | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                                                          |
-| **\[text/json]**, **\[text/yaml]**, **\[text/csv]** | *(any message type)*                                 | Generic serializer for any message type:<br>• **JSON**: one object per line (`.json`)<br>• **YAML**: full YAML doc per message (`.yaml`)<br>• **CSV**: flatten fields, write header + rows (`.csv`). |
+| **image/png**                                    | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.          
+| **image/jpeg**                 | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                  |
+| **pointcloud/pkl**                               | `sensor_msgs/msg/PointCloud2`                                    | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                                                                                                 |
+| **pointcloud/xyz**                               | `sensor_msgs/msg/PointCloud2`                                    | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.                                                                      |
+| **pointcloud/pcd**                               | `sensor_msgs/msg/PointCloud2`                                    | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                                                          |
 
+In addition to these specialized routines, there are also generic routines for exporting any message type to common formats. These are available as `@single_file` and `@multi_file` variants, which determine whether all messages are written to a single file or each message is written to its own file:
+
+| Identifier       | Topic(s)             | `@single_file` Description                                                      | `@multi_file` Description                                                     |
+| ---------------- | -------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **table/csv** | *any message type* | Flattens fields, writes header + one row per message into a single `.csv` file. | Flattens fields, writes header + one message per file into separate `.csv` files. |
+| **text/json** | *any message type* | All messages in one `.json` file as a list of objects.                          | One `.json` file per message.                                             |
+| **text/yaml** | *any message type* | One `.yaml` document containing all messages in a single `.yaml` file.             | One `.yaml` document per message.                                    |
+
+You can call these as `table/csv@single_file` or `table/csv@multi_file`.
+
+### Custom Export Routines
 Your message type or output format is not supported by default? No problem! You can add your own export routines to handle custom message types or output formats.
 
 Routines are defined like this: 
