@@ -92,7 +92,7 @@ class ExportProgressDialog(QtWidgets.QDialog):
         # Display GIF animation
         gif_label = QtWidgets.QLabel(self)
         base_dir = Path(__file__).resolve().parent
-        gif_animation = QtGui.QMovie(str(base_dir / "loading.gif"))
+        gif_animation = QtGui.QMovie(str(base_dir / "assets/loading.gif"))
         gif_label.setMovie(gif_animation)
         gif_animation.start()
         layout.addWidget(gif_label, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -283,7 +283,7 @@ class UnbagApp(QtWidgets.QWidget):
 
         # Title image
         base_dir = Path(__file__).resolve().parent
-        pixmap = QtGui.QPixmap(str(base_dir / "title.png")).scaledToWidth(750, QtCore.Qt.TransformationMode.SmoothTransformation)
+        pixmap = QtGui.QPixmap(str(base_dir / "assets/title.png")).scaledToWidth(750, QtCore.Qt.TransformationMode.SmoothTransformation)
         image_label = QtWidgets.QLabel()
         image_label.setPixmap(pixmap)
         image_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
