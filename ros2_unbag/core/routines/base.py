@@ -21,20 +21,27 @@
 # SOFTWARE.
 
 from collections import defaultdict
+from enum import Enum, auto
 
 
+class ExportMode(Enum):
+    SINGLE_FILE = auto()
+    MULTI_FILE = auto()
+    
+    
 class ExportRoutine:
     # Registry for export routines by message type and format
     registry = defaultdict(list)
-    catch_all = None  # fallback routine if no specific match is found
+    catch_all_registry = defaultdict(list)
 
-    def __init__(self, msg_types, formats):
+    def __init__(self, msg_types, formats, mode):
         """
         Register an export routine for the specified message types and formats.
 
         Args:
             msg_types: Message type string or list of message types.
             formats: List of supported export formats.
+            mode: ExportMode indicating whether to use single or multi-file export.
 
         Returns:
             None
@@ -42,6 +49,7 @@ class ExportRoutine:
         self.msg_types = msg_types if isinstance(msg_types,
                                                  list) else [msg_types]
         self.formats = formats
+        self.mode = mode
         self.__class__.register(self)
 
     def __call__(self, func):
@@ -85,8 +93,7 @@ class ExportRoutine:
         supported_formats = []
         if msg_type in cls.registry:
             supported_formats.extend(fmt for r in cls.registry[msg_type] for fmt in r.formats)
-        if cls.catch_all:
-            supported_formats.extend(cls.catch_all.formats)
+        supported_formats.extend(cls.catch_all_registry.keys())
         return supported_formats
 
     @classmethod
@@ -104,12 +111,31 @@ class ExportRoutine:
         for r in cls.registry.get(msg_type, []):
             if fmt in r.formats:
                 return r.func
-        if cls.catch_all and fmt in cls.catch_all.formats:
-            return cls.catch_all.func
+        for r in cls.catch_all_registry.get(fmt, []):
+            return r.func
+        return None
+    
+    @classmethod
+    def get_mode(cls, msg_type, fmt):
+        """
+        Get the export mode for a specific message type and format.
+
+        Args:
+            msg_type: Message type string.
+            fmt: Export format string.
+
+        Returns:
+            ExportMode: The export mode for the given message type and format.
+        """
+        for r in cls.registry.get(msg_type, []):
+            if fmt in r.formats:
+                return r.mode
+        for r in cls.catch_all_registry.get(fmt, []):
+            return r.mode
         return None
 
     @classmethod
-    def set_catch_all(cls, formats):
+    def set_catch_all(cls, formats, mode):
         """
         Decorator to register a fallback export routine for any message type with specified formats.
 
@@ -120,8 +146,9 @@ class ExportRoutine:
             function: Decorator function.
         """
         def decorator(func):
-            cls.catch_all = ExportRoutine(msg_types=[], formats=formats)
-            cls.catch_all.func = func
+            routine = ExportRoutine(msg_types=[], formats=formats, mode=mode)
+            routine.func = func
+            for fmt in formats:
+                cls.catch_all_registry[fmt].append(routine)
             return func
-
         return decorator

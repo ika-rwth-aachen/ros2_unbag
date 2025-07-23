@@ -23,10 +23,10 @@
 import cv2
 import numpy as np
 
-from ros2_unbag.core.routines.base import ExportRoutine
+from ros2_unbag.core.routines.base import ExportRoutine, ExportMode
 
 
-@ExportRoutine("sensor_msgs/msg/CompressedImage", ["image/png", "image/jpeg"])
+@ExportRoutine("sensor_msgs/msg/CompressedImage", ["image/png", "image/jpeg"], mode=ExportMode.MULTI_FILE)
 def export_compressed_image(msg, path, fmt="image/png", is_first=True):
     """
     Export a CompressedImage ROS message to PNG or JPEG.
@@ -57,7 +57,7 @@ def export_compressed_image(msg, path, fmt="image/png", is_first=True):
         cv2.imwrite(path + ext, img)
 
 
-@ExportRoutine("sensor_msgs/msg/Image", ["image/png", "image/jpeg"])
+@ExportRoutine("sensor_msgs/msg/Image", ["image/png", "image/jpeg"], mode=ExportMode.MULTI_FILE)
 def export_raw_image(msg, path, fmt="image/png", is_first=True):
     """
     Export a raw Image ROS message to PNG or JPEG.

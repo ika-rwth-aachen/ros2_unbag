@@ -1,4 +1,4 @@
-# To allow X11 forwarding from the docker to the host execute `xhost +local` on your host machine before running this compose file
+# To allow X11 forwarding from the docker to the host execute `xhost +local` on your host machine before running this compose file (at your own risk).
 
 services:
   ros2_unbag:
