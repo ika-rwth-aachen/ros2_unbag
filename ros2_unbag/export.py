@@ -202,7 +202,6 @@ class ExportCommand(CommandExtension):
                 "path": export_path,
                 "naming": args.naming.strip()
             }
-            print(config[topic])
 
         if args.resample:
             try:
