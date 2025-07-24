@@ -187,7 +187,7 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
   "output_dir": "./out",
   "exports": [
     { "topic": "/cam/image_raw", "format": "image/png", "subdir": "%name" },
-    { "topic": "/imu", "format": "text/csv", "subdir": "%name" }
+    { "topic": "/imu", "format": "table/csv@multi_file", "subdir": "%name" }
   ],
   "resample": [
     { "master": "/cam/image_raw", "type": "nearest", "discard_eps": 0.05 }
@@ -204,21 +204,21 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
 
 Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for **all** message types and formats, such as:
 
-| Identifier(s)                                       | Topic(s)                                                         | Description                                                                                                                                                                                          |
-| --------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **image/png**                                    | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.          
-| **image/jpeg**                 | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                  |
-| **pointcloud/pkl**                               | `sensor_msgs/msg/PointCloud2`                                    | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                                                                                                 |
-| **pointcloud/xyz**                               | `sensor_msgs/msg/PointCloud2`                                    | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.                                                                      |
-| **pointcloud/pcd**                               | `sensor_msgs/msg/PointCloud2`                                    | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                                                          |
+| Identifier(s)       | Topic(s)                                                      | Description                                                                                                                      |
+| ------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **image/png**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                                                                |  
+| **image/jpeg**      | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                                                               |
+| **pointcloud/pkl**  | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                             |
+| **pointcloud/xyz**  | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.  |
+| **pointcloud/pcd**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                          |
 
 In addition to these specialized routines, there are also generic routines for exporting any message type to common formats. These are available as `@single_file` and `@multi_file` variants, which determine whether all messages are written to a single file or each message is written to its own file:
 
-| Identifier       | Topic(s)             | `@single_file` Description                                                      | `@multi_file` Description                                                     |
-| ---------------- | -------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **table/csv** | *any message type* | Flattens fields, writes header + one row per message into a single `.csv` file. | Flattens fields, writes header + one message per file into separate `.csv` files. |
-| **text/json** | *any message type* | All messages in one `.json` file as a list of objects.                          | One `.json` file per message.                                             |
-| **text/yaml** | *any message type* | One `.yaml` document containing all messages in a single `.yaml` file.             | One `.yaml` document per message.                                    |
+| Identifier    | Topic(s)             | `@single_file` Description                                                      | `@multi_file` Description                                                         |
+| ------------- | -------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **table/csv** | *any message type*   | Flattens fields, writes header + one row per message into a single `.csv` file. | Flattens fields, writes header + one message per file into separate `.csv` files. |
+| **text/json** | *any message type*   | All messages in one `.json` file as a list of objects.                          | One `.json` file per message.                                                     |
+| **text/yaml** | *any message type*   | One `.yaml` document containing all messages in a single `.yaml` file.          | One `.yaml` document per message.                                                 |
 
 You can call these as `table/csv@single_file` or `table/csv@multi_file`.
 
@@ -237,7 +237,7 @@ def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):    # 
     Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
 
     Args:
-        msg: message instance.
+        msg: Message instance.
         path: Output file path (without extension).
         fmt: Export format string - can be any of the formats defined in the decorator.
         is_first: Boolean indicating if this is the first message for the file. Can be useful in single file exports to handle headers or initializations.
@@ -274,9 +274,13 @@ ros2 unbag --uninstall-routine
 ```
 You’ll be prompted to pick which routine to uninstall.
 
+⚠️ Never use or install new routines that you did not write yourself or that you do not trust. The code gets ingested and executed in the context of the *ros2 unbag* process, which means it can access all data and resources available to the process. This includes reading and writing files, accessing network resources, and more. Always review the code of any routine you use or install.
+
 ## Processors
 
 Processors are used to modify messages before they are exported. They can be applied to specific topics and allow you to perform operations such as filtering, transforming, or enriching the data.
+
+### Custom Processors
 
 You can define your own processors like this:
 
@@ -285,11 +289,21 @@ from ros2_unbag.core.processors.base import Processor               # import the
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
 @Processor("sensor_msgs/msg/CompressedImage", ["recolor"])
-def recolor_compressed_image(msg, color_map):                       # define the processor function 
-    # the name of the function does not matter
-    # the first parameter must be the message to process
-    # any other parameters can be set by the user during runtime
-    """Recolor a compressed image using a cv2 color map
+def recolor_compressed_image(msg, color_map):                       # define the processor function, the name of the function does not matter
+    """
+    Recolor a compressed image using a cv2 color map
+
+    Args:
+        msg: Message instance.
+        Optional arguments can be passed as keyword arguments:
+        color_map: Integer or string convertible to integer specifying cv2 colormap.
+
+    Returns:
+        Message instance of the same type as the input message, with the image data recolored.
+
+    Raises:
+        ValueError: If color_map is not an integer.
+        RuntimeError: If image encoding fails.
     """
     try:
         color_map = int(color_map)
@@ -335,6 +349,8 @@ If you installed a processor and do not want it anymore, you can delete it by ca
 ros2 unbag --uninstall-processor
 ```
 You’ll be prompted to pick which processor to uninstall.
+
+⚠️ Never use or install new processes that you did not write yourself or that you do not trust. The code gets ingested and executed in the context of the *ros2 unbag* process, which means it can access all data and resources available to the process. This includes reading and writing files, accessing network resources, and more. Always review the code of any routine you use or install.
 
 ## Resampling
 In many cases, you may want to resample messages in the frequency of a master topic. This allows you to assemble a "frame" of data that is temporally aligned with a specific topic, such as a camera or LIDAR sensor. The resampling process will ensure that the messages from other topics are exported in sync with the master topic's timestamps.
