@@ -43,7 +43,7 @@ jobs:
       - name: Twine check
         run: python3 -m twine check dist/*
 
-      - name: Upload to TestPyPI (manual runs)
+      - name: Upload to TestPyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
