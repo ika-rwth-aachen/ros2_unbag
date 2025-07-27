@@ -22,6 +22,9 @@ jobs:
     container:
       image: rwthika/ros2:jazzy
       options: --user root
+    environment:
+      name: PyPI
+      url: https://pypi.org/project/ros2-unbag/
     steps:
       - uses: actions/checkout@v4
         with:
