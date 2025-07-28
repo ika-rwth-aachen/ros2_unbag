@@ -6,10 +6,6 @@ on:
       - main
     tags:
       - '*'
-  pull_request:
-    branches:
-      - main
-
 
 concurrency:
   group: publish-${{ github.ref }}

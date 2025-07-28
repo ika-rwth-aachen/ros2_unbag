@@ -21,13 +21,18 @@
 # SOFTWARE.
 
 from collections import defaultdict
+from dataclasses import dataclass
 from enum import Enum, auto
 
 
 class ExportMode(Enum):
     SINGLE_FILE = auto()
     MULTI_FILE = auto()
-    
+
+@dataclass(frozen=True)
+class ExportMetadata:
+    index: int                     # The index of the message in the topic
+    max_index: int                 # The maximum index of the message in the topic  
     
 class ExportRoutine:
     # Registry for export routines by message type and format

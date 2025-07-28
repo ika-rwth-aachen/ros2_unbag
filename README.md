@@ -73,7 +73,7 @@ sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libx
 ### From PyPI (via pip)
 
 ```bash
-pip install ros2_unbag
+pip install ros2-unbag
 ```
 
 ### From source (via pip)
@@ -228,24 +228,25 @@ Your message type or output format is not supported by default? No problem! You 
 Routines are defined like this: 
 
 ```python
-from ros2_unbag.core.routines.base import ExportRoutine                       # import the base class
+from pathlib import Path                                                          # import Path from pathlib for file path handling
+from ros2_unbag.core.routines.base import ExportRoutine                           # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)  
-def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):    # define the export function, the name of the function does not matter
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)
+def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):   # define the export routine function, the name of the function does not matter
     """
     Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
 
     Args:
-        msg: Message instance.
+        msg: PointCloud2 message instance.
         path: Output file path (without extension).
-        fmt: Export format string - can be any of the formats defined in the decorator.
-        is_first: Boolean indicating if this is the first message for the file. Can be useful in single file exports to handle headers or initializations.
+        fmt: Export format string (default "pointcloud/xyz").
+        metadata: Export metadata including message index and max index.
 
     Returns:
         None
     """
-    with open(path + ".xyz", 'w') as f:                                       # define your custom logic to export the message
+    with open(path + ".xyz", 'w') as f:                                            # define your custom logic to export the message
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")

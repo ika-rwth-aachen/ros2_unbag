@@ -21,13 +21,14 @@
 # SOFTWARE.
 
 import struct
+from pathlib import Path
 import pickle
 
-from ros2_unbag.core.routines.base import ExportRoutine, ExportMode
+from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"], mode=ExportMode.MULTI_FILE)
-def export_pointcloud_pkl(msg, path, fmt="pointcloud/pkl", is_first=True):
+def export_pointcloud_pkl(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export PointCloud2 message as a raw pickle file by dumping the message object to a .pkl.
 
@@ -35,17 +36,17 @@ def export_pointcloud_pkl(msg, path, fmt="pointcloud/pkl", is_first=True):
         msg: PointCloud2 message instance.
         path: Output file path (without extension).
         fmt: Export format string (default "pointcloud/pkl").
-        is_first: Boolean indicating if this is the first message for the file.
+        metadata: Export metadata including message index and max index.
 
     Returns:
         None
     """
-    with open(path + ".pkl", 'wb') as f:
+    with open(path.with_suffix(".pkl"), 'wb') as f:
         pickle.dump(msg, f)
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)
-def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):
+def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
 
@@ -53,19 +54,19 @@ def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz", is_first=True):
         msg: PointCloud2 message instance.
         path: Output file path (without extension).
         fmt: Export format string (default "pointcloud/xyz").
-        is_first: Boolean indicating if this is the first message for the file.
+        metadata: Export metadata including message index and max index.
 
     Returns:
         None
     """
-    with open(path + ".xyz", 'w') as f:
+    with open(path.with_suffix(".xyz"), 'w') as f:
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd"], mode=ExportMode.MULTI_FILE)
-def export_pointcloud_pcd(msg, path, fmt="pointcloud/pcd", is_first=True):
+def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export PointCloud2 message as a binary PCD v0.7 file.
     Construct and write PCD header from message fields and metadata, then pack and write each point’s data.
@@ -74,7 +75,7 @@ def export_pointcloud_pcd(msg, path, fmt="pointcloud/pcd", is_first=True):
         msg: PointCloud2 message instance.
         path: Output file path (without extension).
         fmt: Export format string (default "pointcloud/xyz").
-        is_first: Boolean indicating if this is the first message for the file.
+        metadata: Export metadata including message index and max index.
 
     Returns:
         None
@@ -110,7 +111,7 @@ def export_pointcloud_pcd(msg, path, fmt="pointcloud/pcd", is_first=True):
         f"POINTS {num_points}", "DATA binary"
     ]
 
-    with open(path + ".pcd", "wb") as f:
+    with open(path.with_suffix(".pcd"), "wb") as f:
         # Write header to file
         for line in header:
             f.write((line + "\n").encode("ascii"))

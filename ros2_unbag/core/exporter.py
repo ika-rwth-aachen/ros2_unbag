@@ -24,11 +24,11 @@ from collections import defaultdict, deque
 from datetime import datetime
 import logging
 import multiprocessing as mp
-import os
+from pathlib import Path
 import threading
 
 from ros2_unbag.core.processors.base import Processor
-from ros2_unbag.core.routines.base import ExportRoutine, ExportMode
+from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 
 
 class Exporter:
@@ -80,6 +80,11 @@ class Exporter:
         self.topic_processors = {}
 
         for topic, cfg in self.config.items():
+
+            if topic == "/tf" or topic == "/tf_static":
+                exception_msg = f"Currently, the exporter does not support exporting TF messages. "
+                raise NotImplementedError(exception_msg)
+
             fmt = cfg['format']
             topic_type = self.topic_types[topic]
 
@@ -118,9 +123,9 @@ class Exporter:
             KeyboardInterrupt: If interrupted by user.
         """
         # Start export process using multiprocessing
-        message_count = self.bag_reader.get_message_count()
+        self.message_count = self.bag_reader.get_message_count()
         self.max_progress_count = sum(
-            message_count.get(key, 0) for key in self.config)
+            self.message_count.get(key, 0) for key in self.config)
         self.bag_reader.set_filter(self.config.keys())
 
         # Queues for exceptions and progress
@@ -184,6 +189,7 @@ class Exporter:
         progress_queue.put(None)
         monitor.join()
 
+
     def abort_export(self):
         """
         Abort export by throwing a user abort exception.
@@ -196,6 +202,7 @@ class Exporter:
         """
         error = RuntimeError(f"Export aborted by user")
         self.exception_queue.put((type(error).__name__, str(error)))
+
 
     def _producer(self):
         """
@@ -260,6 +267,7 @@ class Exporter:
                 return topic, assoc_strategy, discard_eps
         return None, None, None
 
+
     def _export_all_messages(self):
         """
         Read and enqueue every message from configured topics without resampling, then signal workers to terminate.
@@ -278,6 +286,7 @@ class Exporter:
             if topic in self.config:
                 self._enqueue_export_task(topic, msg)
         self._signal_worker_termination()
+
 
     def _process_last_association(self, master_topic, discard_eps,
                                   dropped_frames):
@@ -305,8 +314,13 @@ class Exporter:
             cfg = self.config.get(topic)
             if not cfg:
                 continue
+            
+            try:
+                ts = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            except AttributeError:
+                # Fallback timestamp (receive time)
+                ts = msg.stamp.sec + msg.stamp.nanosec * 1e-9
 
-            ts = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
             latest_ts_seen = max(latest_ts_seen, ts)
             latest_messages[topic] = (ts, msg)
 
@@ -342,6 +356,7 @@ class Exporter:
                             master_ts - latest_messages[t][0]) > discard_eps):
                         dropped_frames[t] += 1
 
+
     def _process_nearest_association(self, master_topic,
                                      discard_eps, dropped_frames):
         """
@@ -369,7 +384,12 @@ class Exporter:
             if not cfg:
                 continue
 
-            ts = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            try:
+                ts = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            except AttributeError:
+                # Fallback timestamp (receive time)
+                ts = msg.stamp.sec + msg.stamp.nanosec * 1e-9
+            
             latest_ts_seen = max(latest_ts_seen, ts)
             buffers[topic].append((ts, msg))
 
@@ -439,6 +459,7 @@ class Exporter:
             self.parallel_q.put(None)
             self.seq_queues[topic].put(None)
 
+
     def _print_drop_summary(self, dropped_frames):
         """
         Print summary of how many frames were dropped per topic.
@@ -454,6 +475,7 @@ class Exporter:
         self.logger.info("\nDropped frames per topic:")
         for topic, count in dropped_frames.items():
             self.logger.info(f"  {topic}: {count}")
+
 
     def _enqueue_export_task(self, topic, msg):
         """
@@ -501,8 +523,9 @@ class Exporter:
         else:
             filename = naming
 
-        os.makedirs(path, exist_ok=True)
-        full_path = os.path.join(path, filename)
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        full_path = path / filename
 
         # Determine if this is the first time this file is being enqueued
         is_first = full_path not in self._enqueued_files
@@ -515,12 +538,16 @@ class Exporter:
         if export_mode == ExportMode.MULTI_FILE and not is_first:
             raise ValueError(f"Cannot use a non-changing file name for topic '{topic}' "
                              f"and format '{fmt}'. This will overwrite the previous file: {full_path}")
+        
+        # Create metadata for the export
+        metadata = ExportMetadata(index=index, max_index=self.message_count[topic]-1)
 
-        task = (topic, msg, full_path, fmt, is_first)
+        task = (topic, msg, full_path, fmt, metadata)
         if sequential:
             self.seq_queues[topic].put(task)
         else:
             self.parallel_q.put(task)
+
 
     def _worker(self, task_queue, progress_queue, fallback_queue=None):
         """
@@ -545,7 +572,7 @@ class Exporter:
                         task_queue, fallback_queue = fallback_queue, None
                         continue
                     break
-                topic, msg, full_path, fmt, is_first = task
+                topic, msg, full_path, fmt, metadata = task
 
                 # Use pre-fetched processor if available
                 processor = self.topic_processors.get(topic)
@@ -556,13 +583,14 @@ class Exporter:
                 # Use pre-fetched export handler
                 export_handler = self.topic_handlers[topic]
                 if export_handler:
-                    export_handler(msg, full_path, fmt, is_first)
+                    export_handler(msg, full_path, fmt, metadata)
                     progress_queue.put(1)
 
             except Exception as e:
                 # Handle exceptions during export
                 self.exception_queue.put((type(e).__name__, str(e)))
                 break
+
 
     def _monitor(self, progress_queue):
         """
@@ -588,6 +616,7 @@ class Exporter:
                     # Handle exceptions in progress callback
                     self.logger.error(f"Error in progress callback: {done}/{self.max_progress_count}")
                     pass
+
 
     def _format_ros_timestamp(self, header):
         """
