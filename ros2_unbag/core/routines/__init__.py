@@ -23,7 +23,7 @@
 import importlib
 import pkgutil
 
-from .base import ExportRoutine
+from .base import ExportRoutine, ExportMode
 
 def load_all_routines():
     """

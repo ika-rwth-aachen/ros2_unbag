@@ -23,6 +23,8 @@
 from collections import defaultdict
 import os
 
+from tf2_msgs.msg import TFMessage
+
 from rclpy.serialization import deserialize_message
 from rosbag2_py import (
     ConverterOptions,
@@ -211,6 +213,14 @@ class BagReader:
             topic, data, t = self.reader.read_next()
             msg_type = get_message(self.topic_types[topic])
             msg = deserialize_message(data, msg_type)
+
+            # Handle TFMessage specifically to extract the first transform
+            if type(msg) is TFMessage:
+                if msg.transforms:
+                    msg = msg.transforms[0]
+                else:
+                    return None
+                
             return topic, msg, t
         except Exception as e:
             raise RuntimeError(f"Failed to read message: {e}")

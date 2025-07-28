@@ -1,15 +1,17 @@
-<img src="ros2_unbag/ui/title.png" height=130 align="right">
+<img src="ros2_unbag/ui/assets/badge.svg" height=130 align="right">
 
 # *ros2 unbag* - fast ROS 2 bag export for any format
 
 <p align="center">
   <img src="https://img.shields.io/github/license/ika-rwth-aachen/ros2_unbag"/>
   <a href="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml"><img src="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml/badge.svg"/></a>
+  <a href="https://pypi.org/project/ros2-unbag/"><img src="https://img.shields.io/pypi/v/ros2-unbag?label=PyPI"/></a>
+  <a href="https://pypi.org/project/ros2-unbag/"><img src="https://img.shields.io/pypi/dm/ros2-unbag?color=blue&label=PyPI%20downloads"/></a>
 </p>
 
 *ros2 unbag* is a ROS 2 CLI plugin with optional GUI for extracting selected topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
 
-It comes with export routines for [common message types](#export-routines) (sensor data, point clouds, images). You need a special file format or message type? Add your own export plugin for any ROS 2 message or format, and chain custom processors to filter, transform or enrich messages (e.g. drop fields, compute derived values, remap frames).
+It comes with export routines for [all message types](#export-routines) (sensor data, point clouds, images). You need a special file format or message type? Add your [own export plugin](#custom-export-routines) for any ROS 2 message or format, and chain custom processors to filter, transform or enrich messages (e.g. drop fields, compute derived values, remap frames).
 
 Optional resampling synchronizes your data streams around a chosen master topic—aligning each other topic either to its last‑known sample (“last”) or to the temporally closest sample (“nearest”)—so you get a consistent sample count in your exports.
 
@@ -30,7 +32,8 @@ Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to tu
   - [GUI Mode](#gui-mode)  
   - [CLI Mode](#cli-mode)  
 - [Config File](#config-file)  
-- [Export Routines](#export-routines)  
+- [Export Routines](#export-routines)
+  - [Custom Export Routines](#custom-export-routines)
 - [Processors](#processors)  
 - [Resampling](#resampling)  
   - [last](#last)  
@@ -60,10 +63,17 @@ source /opt/ros/<distro>/setup.bash
 
 Replace `<distro>` with your ROS 2 distribution.
 
+Install the required apt dependencies:
+
+```bash
+sudo apt update
+sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
+````
+
 ### From PyPI (via pip)
 
 ```bash
-pip install ros2_unbag
+pip install ros2-unbag
 ```
 
 ### From source (via pip)
@@ -139,33 +149,31 @@ ros2 unbag <path_to_rosbag> --config <config.json>
 the structure of config files is described in [here](#config-file).
 
 In addition to these required flags, there are some optional flags. See the table below, for all possible flags:
-| Flag                        | Value/Format                        | Description                                                                                               | Usage                              | Default        |   |
-| --------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
-| **`bag`**                   | `<path>`                            | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
-| **`-e, --export`**          | `/topic:format[:subdir]`            | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
-| **`-o, --output-dir`**      | `<directory>`                       | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
-| **`--naming`**              | `<pattern>`                         | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
-| **`--resample`**            | `/master:association[,discard_eps]` | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
-| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`    | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |   |
-| **`--cpu-percentage`**      | `<float>`                           | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |   |
-| **`--config`**              | `<config.json>`                     | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |   |
-| **`--gui`**                 | (flag)                              | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |   |
-| **`--use-routine`**         | `<file.py>`                         | Load a routine for this run only (no install).                                                            | Optional                           | –              |   |
-| **`--use-processor`**       | `<file.py>`                         | Load a processor for this run only (no install).                                                          | Optional                           | –              |   |
-| **`--install-routine`**     | `<file.py>`                         | Copy & register custom export routine.                                                                    | Standalone                         | –              |   |
-| **`--install-processor`**   | `<file.py>`                         | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
-| **`--uninstall-routine`**   | (flag)                              | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
-| **`--uninstall-processor`** | (flag)                              | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
-| **`--help`**                | (flag)                              | Show usage information and exit.                                                                          | Standalone                         | -              |   |
-
-⚠️ For `[text/csv]`, `[text/json]` or `[text/yaml]` exports, any changing name pattern (e.g. `%index` or date/time placeholders) will produce a separate file per message. To bundle all messages into one file, use a fixed filename (omit `%index` and any timestamp placeholders).
+| Flag                        | Value/Format                             | Description                                                                                               | Usage                              | Default        |   |
+| --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
+| **`bag`**                   | `<path>`                                 | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
+| **`-e, --export`**          | `/topic:format[:subdir]`                 | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
+| **`-o, --output-dir`**      | `<directory>`                            | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
+| **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
+| **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
+| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`         | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |   |
+| **`--cpu-percentage`**      | `<float>`                                | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |   |
+| **`--config`**              | `<config.json>`                          | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |   |
+| **`--gui`**                 | (flag)                                   | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |   |
+| **`--use-routine`**         | `<file.py>`                              | Load a routine for this run only (no install).                                                            | Optional                           | –              |   |
+| **`--use-processor`**       | `<file.py>`                              | Load a processor for this run only (no install).                                                          | Optional                           | –              |   |
+| **`--install-routine`**     | `<file.py>`                              | Copy & register custom export routine.                                                                    | Standalone                         | –              |   |
+| **`--install-processor`**   | `<file.py>`                              | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
+| **`--uninstall-routine`**   | (flag)                                   | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
+| **`--uninstall-processor`** | (flag)                                   | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
+| **`--help`**                | (flag)                                   | Show usage information and exit.                                                                          | Standalone                         | -              |   |
 
 ⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
 
 Example: 
 ```bash
 ros2 unbag rosbag/rosbag.mcap 
-    --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --resample /lidar/point_cloud:last,0.2
+    --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --export /radar/point_cloud:pointcloud/pcd:radar --resample /lidar/point_cloud:last,0.2
 ```
 
 ## Config File
@@ -178,8 +186,8 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
   "bag_path": "rosbag/data.mcap",
   "output_dir": "./out",
   "exports": [
-    { "topic": "/cam/image_raw", "format": "image/png", "subdir": "cam" },
-    { "topic": "/imu", "format": "text/csv" }
+    { "topic": "/cam/image_raw", "format": "image/png", "subdir": "%name" },
+    { "topic": "/imu", "format": "table/csv@multi_file", "subdir": "%name" }
   ],
   "resample": [
     { "master": "/cam/image_raw", "type": "nearest", "discard_eps": 0.05 }
@@ -194,36 +202,61 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
 
 ## Export Routines 
 
-Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for common message types and formats, such as:
+Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for **all** message types and formats, such as:
 
-| Identifier(s)                                       | Topic(s)                                                         | Description                                                                                                                                                                                          |
-| --------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **\[image/png]**, **\[image/jpeg]**                 | • `sensor_msgs/msg/Image`<br>• `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG or PNG.                                                    |
-| **\[pointcloud/pkl]**                               | `sensor_msgs/msg/PointCloud2`                                    | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                                                                                                 |
-| **\[pointcloud/xyz]**                               | `sensor_msgs/msg/PointCloud2`                                    | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.                                                                      |
-| **\[pointcloud/pcd]**                               | `sensor_msgs/msg/PointCloud2`                                    | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                                                          |
-| **\[text/json]**, **\[text/yaml]**, **\[text/csv]** | *(any message type)*                                 | Generic serializer for any message type:<br>• **JSON**: one object per line (`.json`)<br>• **YAML**: full YAML doc per message (`.yaml`)<br>• **CSV**: flatten fields, write header + rows (`.csv`). |
+| Identifier(s)       | Topic(s)                                                      | Description                                                                                                                      |
+| ------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **image/png**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                                                                |  
+| **image/jpeg**      | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                                                               |
+| **pointcloud/pkl**  | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                             |
+| **pointcloud/xyz**  | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.  |
+| **pointcloud/pcd**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                          |
 
+In addition to these specialized routines, there are also generic routines for exporting any message type to common formats. These are available as `@single_file` and `@multi_file` variants, which determine whether all messages are written to a single file or each message is written to its own file:
+
+| Identifier    | Topic(s)             | `@single_file` Description                                                      | `@multi_file` Description                                                         |
+| ------------- | -------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **table/csv** | *any message type*   | Flattens fields, writes header + one row per message into a single `.csv` file. | Flattens fields, writes header + one message per file into separate `.csv` files. |
+| **text/json** | *any message type*   | All messages in one `.json` file as a list of objects.                          | One `.json` file per message.                                                     |
+| **text/yaml** | *any message type*   | One `.yaml` document containing all messages in a single `.yaml` file.          | One `.yaml` document per message.                                                 |
+
+You can call these as `table/csv@single_file` or `table/csv@multi_file`.
+
+### Custom Export Routines
 Your message type or output format is not supported by default? No problem! You can add your own export routines to handle custom message types or output formats.
 
 Routines are defined like this: 
 
 ```python
-from ros2_unbag.core.routines.base import ExportRoutine                  # import the base class
+from pathlib import Path                                                          # import Path from pathlib for file path handling
+from ros2_unbag.core.routines.base import ExportRoutine                           # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"])        # define the message type and output format, each of these can be a list of formats
-def export_pointcloud_xyz(msg, path, fmt="pointcloud/xyz"):              # define the export function
-    # the name of the function does not matter
-    # the parameters do need to be defined like this
-        # msg: the message to export
-        # path: the path to the output folder (without extension)
-        # fmt: the format to export to - can be any of the formats defined in the decorator
-    with open(path + ".xyz", 'w') as f:                                  # define your custom logic to export the message
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)
+def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):   # define the export routine function, the name of the function does not matter
+    """
+    Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
+
+    Args:
+        msg: PointCloud2 message instance.
+        path: Output file path (without extension).
+        fmt: Export format string (default "pointcloud/xyz").
+        metadata: Export metadata including message index and max index.
+
+    Returns:
+        None
+    """
+    with open(path + ".xyz", 'w') as f:                                            # define your custom logic to export the message
         for i in range(0, len(msg.data), msg.point_step):
             x, y, z = struct.unpack_from("fff", msg.data, offset=i)
             f.write(f"{x} {y} {z}\n")
 ```
+
+The message type, format and mode are defined in the decorator. The `ExportRoutine` decorator registers the function as an export routine for the specified message type and format. It has the following attributes:
+
+- `msg_types`: The message types that this routine can handle. (Can be a single type or a list of types.)
+- `formats`: The output formats that this routine supports. (Can be a single format or a list of formats.)
+- `mode`: Specifies the export mode — SINGLE_FILE or MULTI_FILE. This determines whether the routine is designed for exporting data into a single file or multiple files. While this setting affects parallelization and naming conventions, you must implement the logic for single file exports yourself if you choose SINGLE_FILE mode (e.g., appending data to the same file during each function call).
 
 You can import your own routines permanently by calling 
 ```bash 
@@ -242,9 +275,13 @@ ros2 unbag --uninstall-routine
 ```
 You’ll be prompted to pick which routine to uninstall.
 
+⚠️ Never use or install new routines that you did not write yourself or that you do not trust. The code gets ingested and executed in the context of the *ros2 unbag* process, which means it can access all data and resources available to the process. This includes reading and writing files, accessing network resources, and more. Always review the code of any routine you use or install.
+
 ## Processors
 
 Processors are used to modify messages before they are exported. They can be applied to specific topics and allow you to perform operations such as filtering, transforming, or enriching the data.
+
+### Custom Processors
 
 You can define your own processors like this:
 
@@ -252,12 +289,22 @@ You can define your own processors like this:
 from ros2_unbag.core.processors.base import Processor               # import the base class
 # you can also import other packages here - e.g., numpy, cv2, etc.
 
-@Processor("sensor_msgs/msg/CompressedImage", ["recolor"])          # define the message type and the processor name
-def recolor_compressed_image(msg, color_map):                       # define the processor function 
-    # the name of the function does not matter
-    # the first parameter must be the message to process
-    # any other parameters can be set by the user during runtime
-    """Recolor a compressed image using a cv2 color map
+@Processor("sensor_msgs/msg/CompressedImage", ["recolor"])
+def recolor_compressed_image(msg, color_map):                       # define the processor function, the name of the function does not matter
+    """
+    Recolor a compressed image using a cv2 color map
+
+    Args:
+        msg: Message instance.
+        Optional arguments can be passed as keyword arguments:
+        color_map: Integer or string convertible to integer specifying cv2 colormap.
+
+    Returns:
+        Message instance of the same type as the input message, with the image data recolored.
+
+    Raises:
+        ValueError: If color_map is not an integer.
+        RuntimeError: If image encoding fails.
     """
     try:
         color_map = int(color_map)
@@ -282,6 +329,10 @@ def recolor_compressed_image(msg, color_map):                       # define the
     return msg                                                      # return the modified message
 
 ```
+The message type and processor name are defined in the decorator. The `Processor` decorator registers the function as a processor for the specified message type and name. It has the following attributes:
+
+- `msg_types`: The message types that this processor can handle. (Can be a single type or a list of types.)
+- `name`: The name of the processor, which is used to identify it in the system.
 
 You can import your own processors by calling 
 ```bash
@@ -300,21 +351,21 @@ ros2 unbag --uninstall-processor
 ```
 You’ll be prompted to pick which processor to uninstall.
 
+⚠️ Never use or install new processes that you did not write yourself or that you do not trust. The code gets ingested and executed in the context of the *ros2 unbag* process, which means it can access all data and resources available to the process. This includes reading and writing files, accessing network resources, and more. Always review the code of any routine you use or install.
+
 ## Resampling
 In many cases, you may want to resample messages in the frequency of a master topic. This allows you to assemble a "frame" of data that is temporally aligned with a specific topic, such as a camera or LIDAR sensor. The resampling process will ensure that the messages from other topics are exported in sync with the master topic's timestamps.
 
 ros2 unbag supports resampling of messages based on a master topic. You can specify the master topic and the resampling type (e.g., `last` or `nearest`) along with an optional discard epsilon value.
 
 ### Last
-The `last` resampling type will listen for the master topic. As soon as a message of the master topic is received, a frame will be assembled, containing the last last message of any other selected topics. With an optional `discard_eps` value, you can specify a maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
+The `last` resampling type will listen for the master topic. As soon as a message of the master topic is received, a frame will be assembled, containing the last message of any other selected topics. With an optional `discard_eps` value, you can specify a maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
 
 ### Nearest
 The `nearest` resampling type will listen for the master topic and export it along with the (temporally) nearest message of the other topics that were published in the time range of the master topic message. This resampling strategy is only usable with an `discard_eps` value, which defines the maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
 
 ## CPU utilization
-ros2 unbag uses multi-processing to export messages in parallel. The number of processes is determined by the number of CPU cores available on your system. You can control the number of processes by setting the `--cpu-percentage` option when running the CLI tool. The default value is 80%, which means that the tool will use 80% of the available CPU cores for processing. You can adjust this value to control the CPU utilization during the export process.
-
-⚠️ Note: Parallel exports can interleave messages in a single output file. For strict, in‑order output, run with --cpu-percentage 0 to force single‑threaded processing.
+*ros2 unbag* uses multi-processing to export messages in parallel. By default, full parallelization is applied only when exporting to multiple files. For single-file outputs, it uses one process per file to ensure deterministic ordering, which still utilizes multi-processing but with limited concurrency. You can control the number of processes by setting the --cpu-percentage option. The default value is 80%, meaning the tool will use 80% of available CPU cores for processing. Adjust this value to control CPU utilization during export.
 
 ## Acknowledgements
 This research is accomplished within the following research projects:

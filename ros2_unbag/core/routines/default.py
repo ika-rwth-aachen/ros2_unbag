@@ -24,65 +24,124 @@ import csv
 from datetime import datetime
 import fcntl
 import json
-import textwrap
+from pathlib import Path
 
 from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
 
-from ros2_unbag.core.routines.base import ExportRoutine
+from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 
 
-@ExportRoutine.set_catch_all(["text/yaml", "text/json", "text/csv"])
-def export_generic(msg, path, fmt="text/yaml"):
+@ExportRoutine.set_catch_all(["text/yaml@multi_file", "text/json@multi_file", "table/csv@multi_file"], mode=ExportMode.MULTI_FILE)
+def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
-    Generic export handler supporting JSON, YAML, and CSV formats.
-    Serialize the message, determine file extension, and append to the given path with file locking.
+    Generic export handler supporting JSON, YAML, and CSV formats. 
+    Serialize the message, determine file extension, and save to the given path.
 
     Args:
         msg: ROS message instance to export.
         path: Output file path (without extension).
-        fmt: Export format string ("text/yaml", "text/json", "text/csv").
+        fmt: Export format string ("text/yaml@multi_file", "text/json@multi_file", "table/csv@multi_file").
+        metadata: Export metadata including message index and max index.
 
     Returns:
         None
     """
-    
-    # Build timestamp
-    try:
-        timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
-                                            msg.header.stamp.nanosec * 1e-9)
-    except AttributeError:
-        # Fallback timestamp (receive time)
-        timestamp = datetime.fromtimestamp(msg.stamp.sec +
-                                            msg.stamp.nanosec * 1e-9)
+    timestamp = build_timestamp(msg)
         
-    if fmt == "text/json":
-        serialized = message_to_ordereddict(msg)
-        serialized_with_timestamp = {str(timestamp): serialized}
-        serialized_line = json.dumps(serialized_with_timestamp, default=str) + "\n"
+    if fmt == "text/json@multi_file":
+        serialized_line = serialize_message_with_timestamp(msg, "json", timestamp)
         file_ending = ".json"
-    elif fmt == "text/yaml":
-        yaml_content = message_to_yaml(msg)
-        indented_yaml = textwrap.indent(yaml_content, prefix="  ")
-        serialized_line = f"{timestamp}:\n{indented_yaml}\n"
+    elif fmt == "text/yaml@multi_file":
+        serialized_line = serialize_message_with_timestamp(msg, "yaml", timestamp)
         file_ending = ".yaml"
-    elif fmt in ["text/csv", "table/csv"]:
-        flat_data = flatten(message_to_ordereddict(msg))
-        header = ["timestamp", *flat_data.keys()]
-        values = [str(timestamp), *flat_data.values()]
+    elif fmt == "table/csv@multi_file":
+        header, values = serialize_message_with_timestamp(msg, "csv", timestamp)
         file_ending = ".csv"
 
+    # Save the serialized message to a file
+    with open(path.with_suffix(file_ending), "w") as f:
+        # Write the serialized line to the file
+        write_line(f, serialized_line if fmt != "table/csv@multi_file" else [header, values], fmt, True, True)
+
+
+@ExportRoutine.set_catch_all(["text/yaml@single_file", "text/json@single_file", "table/csv@single_file"], mode=ExportMode.SINGLE_FILE)
+def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetadata):
+    """
+    Generic export handler supporting JSON, YAML, and CSV formats.
+    Serialize the message, determine file extension, and append to the given path with file locking (precaution).
+
+    Args:
+        msg: ROS message instance to export.
+        path: Output file path (without extension).
+        fmt: Export format string ("text/yaml@single_file", "text/json@single_file", "table/csv@single_file").
+        metadata: Export metadata including message index and max index.
+
+    Returns:
+        None
+    """
+    timestamp = build_timestamp(msg)
+
+    if fmt == "text/json@single_file":
+        serialized_line = serialize_message_with_timestamp(msg, "json", timestamp)
+        file_ending = ".json"
+    elif fmt == "text/yaml@single_file":
+        serialized_line = serialize_message_with_timestamp(msg, "yaml", timestamp)
+        file_ending = ".yaml"
+    elif fmt == "table/csv@single_file":
+        header, values = serialize_message_with_timestamp(msg, "csv", timestamp)
+        file_ending = ".csv"
+
+    # Determine if this is the first or last message for the file
+    is_first = metadata.index == 0
+    is_last = metadata.index == metadata.max_index
+
     # Save the serialized message to a file - if the filename is constant, messages will be appended
-    with open(path + file_ending, "a+") as f:
+    with open(path.with_suffix(file_ending), "a+") as f:
         while True:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX)
-                write_line(f, serialized_line if fmt != "text/csv" else [header, values], fmt)
+                if metadata.index == 0:
+                    # clear the file if this is the first message
+                    f.seek(0)
+                    f.truncate()
+                # Write the serialized line to the file
+                write_line(f, serialized_line if fmt != "table/csv@single_file" else [header, values], fmt, is_first, is_last)
                 fcntl.flock(f, fcntl.LOCK_UN)
                 break
             except BlockingIOError:
                 continue    #retry if the file is locked by another process
 
-def write_line(file, line, filetype):
+
+def serialize_message_with_timestamp(msg, fmt, timestamp):
+    """
+    Serialize a ROS message to the specified format.
+
+    Args:
+        msg: ROS message instance to serialize.
+        fmt: Export format string ("yaml", "json", "csv").
+        timestamp: Timestamp to include in the serialized output.
+
+    Returns:
+        str: Serialized message as a string.
+    """
+    if fmt == "json":
+        message_dict = message_to_ordereddict(msg)
+        serialized_line = json.dumps(message_dict, default=str)
+        serialized_line_with_timestamp = f'"{timestamp.isoformat()}": {serialized_line}'
+        return serialized_line_with_timestamp
+    elif fmt == "yaml":
+        yaml_content = message_to_yaml(msg)
+        indented_yaml_content = "\n".join(f"  {line}" for line in yaml_content.splitlines())
+        serialized_line_with_timestamp = f"{timestamp}:\n{indented_yaml_content}"
+        return serialized_line_with_timestamp
+    elif fmt == "csv":
+        flat_data = flatten(message_to_ordereddict(msg))
+        header = ["timestamp", *flat_data.keys()]
+        values = [str(timestamp), *flat_data.values()]
+        return [header, values]
+
+
+def write_line(file, line, filetype, is_first, is_last):
     """
     Write a serialized message line to the file.
     For JSON/YAML, write the string; for CSV, ensure header and write the row.
@@ -91,27 +150,41 @@ def write_line(file, line, filetype):
         file: File object to write to.
         line: String for JSON/YAML, or [header, values] list for CSV.
         filetype: Export format string.
+        is_first: Boolean indicating if this is the first message for the file.
+        is_last: Boolean indicating if this is the last message for the file.
 
     Returns:
         None
     """
 
-    # Simple writing for json and yaml
-    if filetype == "text/json" or filetype == "text/yaml":
+    # Simple writing for yaml
+    if "text/yaml" in filetype:
         file.write(line)
+        file.write("\n")
 
-    # Special handling for CSV
-    if filetype == "text/csv":
-        add_csv_header(file, line[0])
+    # Writing for json - include parentheses before first line and after last line
+    elif "text/json" in filetype:
+        if is_first:
+            file.write("{\n")
+        file.write(line)
+        if is_last:
+            file.write("\n}\n")
+        else:
+            file.write(",\n")
+
+    # Writing for csv - include header only for the first line
+    if "table/csv" in filetype:
+        if is_first:
+            add_csv_header(file, line[0])
         writer = csv.writer(file)
         writer.writerow(line[1])   
 
     file.flush()
 
+
 def add_csv_header(file, header):
     """
     Ensure the CSV file starts with the correct header.
-    If missing or different, prepend the provided header row.
 
     Args:
         file: File object to write to.
@@ -121,18 +194,10 @@ def add_csv_header(file, header):
         None
     """
     file.seek(0)
-    reader = csv.reader(file)
-    first_row = next(reader, None)
-    if first_row != header:
-        file.seek(0)
-        content = file.read()
-        file.seek(0)
-        file.truncate()
-        writer = csv.writer(file)
-        writer.writerow(header)
-        if content:
-            file.write(content)
-    file.seek(0, 2)
+    file.truncate()
+    writer = csv.writer(file)
+    writer.writerow(header)
+
 
 def flatten(d, parent_key='', sep='.'):
     """
@@ -154,3 +219,22 @@ def flatten(d, parent_key='', sep='.'):
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+def build_timestamp(msg):
+    """
+    Build a timestamp string from the current time.
+
+    Args:
+        msg: ROS message instance.
+    Returns:
+        str: Timestamp in ISO format.
+    """
+    try:
+        timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
+                                            msg.header.stamp.nanosec * 1e-9)
+    except AttributeError:
+        # Fallback timestamp (receive time)
+        timestamp = datetime.fromtimestamp(msg.stamp.sec +
+                                            msg.stamp.nanosec * 1e-9)
+    return timestamp

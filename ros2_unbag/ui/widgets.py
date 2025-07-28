@@ -26,7 +26,7 @@ import os
 from PySide6 import QtCore, QtWidgets
 
 from ros2_unbag.core.processors import Processor
-from ros2_unbag.core.routines import ExportRoutine
+from ros2_unbag.core.routines import ExportRoutine, ExportMode
 
 
 class TopicSelector(QtWidgets.QWidget):
@@ -248,8 +248,20 @@ class ExportOptions(QtWidgets.QWidget):
             self.all_path_edits.append(abs_path_edit)
 
             # Subdirectory and naming scheme
-            rel_path_edit = QtWidgets.QLineEdit()
-            name_scheme_edit = QtWidgets.QLineEdit("%name_%index")
+            rel_path_edit = QtWidgets.QLineEdit("%name")
+            name_scheme_edit = QtWidgets.QLineEdit()
+            
+            # Dynamic update based on format selection
+            def update_naming_and_checkbox(fmt, name_edit=name_scheme_edit, t_type=topic_type):
+                mode = ExportRoutine.get_mode(t_type, fmt)
+                if mode == ExportMode.SINGLE_FILE:
+                    name_edit.setText("%name")
+                else:
+                    name_edit.setText("%name_%index")
+
+            # Connect format selection to update naming and checkbox
+            fmt_combo.currentTextChanged.connect(update_naming_and_checkbox)
+            update_naming_and_checkbox(fmt_combo.currentText())
 
             # Master checkbox (mutually exclusive)
             is_master_check = QtWidgets.QCheckBox(
@@ -286,11 +298,10 @@ class ExportOptions(QtWidgets.QWidget):
 
         # ────────── Help ──────────
         note = QtWidgets.QLabel(
-            "Naming supports placeholders:\n"
+            "Naming and paths supports placeholders:\n"
             "  %name   → topic name without slashes\n"
             "  %index  → message index (starting from 0)\n"
-            "  %Y, %m, %d, %H, %M, %S  → timestamp components from message header\n"
-            "  %ros_timestamp → seconds_nanoseconds from message header\n"
+            "  %Y, %m, %d, %H, %M, %S  → timestamp components from message header or receive-time if there is no header\n"
             "    (e.g. %Y-%m-%d_%H-%M-%S → 2025-04-14_12-30-00)"
         )
         note.setWordWrap(True)
