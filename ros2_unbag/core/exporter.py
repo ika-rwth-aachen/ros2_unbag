@@ -81,10 +81,6 @@ class Exporter:
 
         for topic, cfg in self.config.items():
 
-            if topic == "/tf" or topic == "/tf_static":
-                exception_msg = f"Currently, the exporter does not support exporting TF messages. "
-                raise NotImplementedError(exception_msg)
-
             fmt = cfg['format']
             topic_type = self.topic_types[topic]
 

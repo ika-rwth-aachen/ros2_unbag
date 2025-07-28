@@ -511,9 +511,14 @@ class UnbagApp(QtWidgets.QWidget):
         Returns:
             None
         """
-        self.worker.terminate()
+        self.wait_dialog.close()
+        self.setEnabled(True)
+
         QtWidgets.QMessageBox.critical(self, "Export Error", str(e))
-        QtWidgets.QApplication.quit()
+        
+        # Return to export settings page with previous config
+        self.worker.terminate()
+        self.show_export_settings_page(config=self.last_used_config, global_config=self.last_used_global_config)
 
     def clear_layout(self):
         """
