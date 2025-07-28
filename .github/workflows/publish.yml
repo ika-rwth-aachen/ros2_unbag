@@ -53,9 +53,9 @@ jobs:
           TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
         run: python3 -m twine upload --skip-existing dist/*
 
-      #- name: Upload to PyPI (tag pushes)
-      #  if: startsWith(github.ref, 'refs/tags/')
-      #  env:
-      #    TWINE_USERNAME: __token__
-      #    TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      #  run: python3 -m twine upload --skip-existing dist/*
+      - name: Upload to PyPI
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python3 -m twine upload --skip-existing dist/*
