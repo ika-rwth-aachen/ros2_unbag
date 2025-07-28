@@ -358,7 +358,7 @@ In many cases, you may want to resample messages in the frequency of a master to
 ros2 unbag supports resampling of messages based on a master topic. You can specify the master topic and the resampling type (e.g., `last` or `nearest`) along with an optional discard epsilon value.
 
 ### Last
-The `last` resampling type will listen for the master topic. As soon as a message of the master topic is received, a frame will be assembled, containing the last last message of any other selected topics. With an optional `discard_eps` value, you can specify a maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
+The `last` resampling type will listen for the master topic. As soon as a message of the master topic is received, a frame will be assembled, containing the last message of any other selected topics. With an optional `discard_eps` value, you can specify a maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
 
 ### Nearest
 The `nearest` resampling type will listen for the master topic and export it along with the (temporally) nearest message of the other topics that were published in the time range of the master topic message. This resampling strategy is only usable with an `discard_eps` value, which defines the maximum time difference between the master topic message and the other topics' messages. If no message is found within the `discard_eps` value, the whole frame is discarded.
