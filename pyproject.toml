@@ -8,4 +8,13 @@ local_scheme = "no-local-version"
 
 [project]
 name = "ros2_unbag"
-dynamic = ["version"]
+dynamic = [
+  "version",
+  "description",
+  "readme",
+  "license",
+  "authors",
+  "maintainers",
+  "dependencies",
+  "entry-points"
+]
