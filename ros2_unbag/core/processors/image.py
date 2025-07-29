@@ -26,16 +26,17 @@ import numpy as np
 from sensor_msgs.msg import CompressedImage, Image
 
 from ros2_unbag.core.processors.base import Processor
+from ros2_unbag.core.utils.image_utils import convert_image
 
 
 @Processor(["sensor_msgs/msg/CompressedImage", "sensor_msgs/msg/Image"], ["apply_color_map"])
-def apply_color_map(msg, color_map):
+def apply_color_map(msg, color_map: int = 1):
     """
     Apply a cv2 color map to an image.
 
     Args:
         msg: CompressedImage or Image ROS 2 message instance.
-        color_map: Integer or string convertible to integer specifying cv2 colormap.
+        color_map: Integer specifying cv2 colormap. For available colormaps, see: https://docs.opencv.org/4.x/d3/d50/group__imgproc__colormap.html
 
     Returns:
         CompressedImage or Image ROS 2 message instance with the color map applied.
@@ -52,32 +53,25 @@ def apply_color_map(msg, color_map):
         raise ValueError(
             f"Invalid color map value: {color_map}. Must be an integer.")
 
-    # Decode incoming message into a single-channel gray cv2 image
+    # Decode incoming message into a cv2 image
     if isinstance(msg, CompressedImage):
         arr = np.frombuffer(msg.data, np.uint8)
-        gray = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
-        if gray is None:
+        cv_image = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+        if cv_image is None:
             raise RuntimeError("Failed to decode CompressedImage")
     elif isinstance(msg, Image):
-        # raw Image: interpret bytes according to encoding
-        h, w = msg.height, msg.width
-        enc = msg.encoding.lower()
-
-        if enc == "mono8":
-            gray = np.frombuffer(msg.data, np.uint8).reshape(h, w)
-        elif enc in ("rgb8", "bgr8"):
-            # reshape into H×W×3
-            arr = np.frombuffer(msg.data, np.uint8).reshape(h, w, 3)
-            # convert RGB→GRAY or BGR→GRAY
-            code = cv2.COLOR_RGB2GRAY if enc == "rgb8" else cv2.COLOR_BGR2GRAY
-            gray = cv2.cvtColor(arr, code)
-        else:
-            raise RuntimeError(f"Unsupported raw image encoding: {msg.encoding}")
+        raw = np.frombuffer(msg.data, dtype=np.uint8)
+        cv_image = convert_image(raw, msg.encoding.lower(), msg.width, msg.height)
     else:
         raise TypeError(f"Unsupported message type: {type(msg)}")
 
+    # Normalize to uint8 if needed
+    if cv_image.dtype != np.uint8:
+        cv_image = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX)
+        cv_image = cv_image.astype(np.uint8)
+
     # Apply the color map
-    recolored = cv2.applyColorMap(gray, color_map)
+    recolored = cv2.applyColorMap(cv_image, color_map)
 
     # Reencode the recolored image back to the original format
     if isinstance(msg, CompressedImage):
@@ -89,8 +83,8 @@ def apply_color_map(msg, color_map):
     elif isinstance(msg, Image):
         # recolored is H×W×3, BGR
         msg.encoding = "bgr8"
-        msg.height = gray.shape[0]
-        msg.width = gray.shape[1]
+        msg.height = recolored.shape[0]
+        msg.width = recolored.shape[1]
         msg.is_bigendian = msg.is_bigendian  # preserve original
         msg.step = msg.width * 3
         # flatten and assign

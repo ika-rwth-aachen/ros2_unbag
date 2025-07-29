@@ -368,28 +368,31 @@ class ExportOptions(QtWidgets.QWidget):
 
         if selected_processor != "No Processor":
             args = Processor.get_args(topic_type, selected_processor)
-            self.processor_args[topic] = {
-            }  # Store argument names and QLineEdit widgets
-            for arg_name, param in args.items():
+            self.processor_args[topic] = {}  # Store argument names and QLineEdit widgets
+
+            for arg_name, (param, doc) in args.items():
                 # Create a QLabel and QLineEdit for each argument
                 label = QtWidgets.QLabel()
-                label.setText(f"{arg_name} (optional)" if param.default !=
-                              inspect.Parameter.empty else arg_name)
+                label.setText(f"{arg_name} (optional)" if param.default != inspect.Parameter.empty else arg_name)
                 label.is_argument_row = True  # Tag this label as an argument row
 
-                # Determine placeholder text with default value if available
+                # Build placeholder with doc, default, and type
+                parts = []
+                if doc:
+                    parts.append(doc)
                 if param.default != inspect.Parameter.empty:
-                    placeholder_text = f"Processor argument {arg_name}, default: {param.default}"
-                else:
-                    placeholder_text = f"Processor argument {arg_name}"
+                    parts.append(f"default: {param.default}")
+                if param.annotation != inspect.Parameter.empty:
+                    parts.append(f"Type: {param.annotation.__name__}")
+                placeholder_text = " — ".join(parts)
 
                 arg_edit = QtWidgets.QLineEdit()
                 arg_edit.setPlaceholderText(placeholder_text)
 
-                # Add the argument to the form layout
+                # Add to form layout
                 form_layout.addRow(label, arg_edit)
 
-                # Store the argument name and QLineEdit widget
+                # Store input
                 self.processor_args[topic][arg_name] = arg_edit
         else:
             # If no processor is selected, clear the stored arguments for this topic

@@ -149,24 +149,24 @@ ros2 unbag <path_to_rosbag> --config <config.json>
 the structure of config files is described in [here](#config-file).
 
 In addition to these required flags, there are some optional flags. See the table below, for all possible flags:
-| Flag                        | Value/Format                             | Description                                                                                               | Usage                              | Default        |   |
-| --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- | - |
-| **`bag`**                   | `<path>`                                 | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |   |
-| **`-e, --export`**          | `/topic:format[:subdir]`                 | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |   |
-| **`-o, --output-dir`**      | `<directory>`                            | Base directory for all exports.                                                                           | Optional                           | `.`            |   |
-| **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |   |
-| **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |   |
-| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`         | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |   |
-| **`--cpu-percentage`**      | `<float>`                                | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |   |
-| **`--config`**              | `<config.json>`                          | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |   |
-| **`--gui`**                 | (flag)                                   | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |   |
-| **`--use-routine`**         | `<file.py>`                              | Load a routine for this run only (no install).                                                            | Optional                           | –              |   |
-| **`--use-processor`**       | `<file.py>`                              | Load a processor for this run only (no install).                                                          | Optional                           | –              |   |
-| **`--install-routine`**     | `<file.py>`                              | Copy & register custom export routine.                                                                    | Standalone                         | –              |   |
-| **`--install-processor`**   | `<file.py>`                              | Copy & register custom processor.                                                                         | Standalone                         | –              |   |
-| **`--uninstall-routine`**   | (flag)                                   | Interactive removal of an installed routine.                                                              | Standalone                         | -              |   |
-| **`--uninstall-processor`** | (flag)                                   | Interactive removal of an installed processor.                                                            | Standalone                         | -              |   |
-| **`--help`**                | (flag)                                   | Show usage information and exit.                                                                          | Standalone                         | -              |   |
+| Flag                        | Value/Format                             | Description                                                                                               | Usage                              | Default        |
+| --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------- |
+| **`bag`**                   | `<path>`                                 | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |
+| **`-e, --export`**          | `/topic:format[:subdir]`                 | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |
+| **`-o, --output-dir`**      | `<directory>`                            | Base directory for all exports.                                                                           | Optional                           | `.`            |
+| **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |
+| **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |
+| **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`         | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |
+| **`--cpu-percentage`**      | `<float>`                                | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |
+| **`--config`**              | `<config.json>`                          | JSON config file path. Overrides all other args (except `bag`).                                           | Optional                           | –              |
+| **`--gui`**                 | (flag)                                   | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                    | Optional                           | `false`        |
+| **`--use-routine`**         | `<file.py>`                              | Load a routine for this run only (no install).                                                            | Optional                           | –              |
+| **`--use-processor`**       | `<file.py>`                              | Load a processor for this run only (no install).                                                          | Optional                           | –              |
+| **`--install-routine`**     | `<file.py>`                              | Copy & register custom export routine.                                                                    | Standalone                         | –              |
+| **`--install-processor`**   | `<file.py>`                              | Copy & register custom processor.                                                                         | Standalone                         | –              |
+| **`--uninstall-routine`**   | (flag)                                   | Interactive removal of an installed routine.                                                              | Standalone                         | -              |
+| **`--uninstall-processor`** | (flag)                                   | Interactive removal of an installed processor.                                                            | Standalone                         | -              |
+| **`--help`**                | (flag)                                   | Show usage information and exit.                                                                          | Standalone                         | -              |
 
 ⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
 
@@ -252,9 +252,11 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata): 
             f.write(f"{x} {y} {z}\n")
 ```
 
+A template for this, including single file handling is available in the `templates` directory of the repository. You can copy it and modify it to suit your needs.
+
 The message type, format and mode are defined in the decorator. The `ExportRoutine` decorator registers the function as an export routine for the specified message type and format. It has the following attributes:
 
-- `msg_types`: The message types that this routine can handle. (Can be a single type or a list of types.)
+- `msg_types`: The message types that this routine can handle. (Can be a single type or a list of types.) Note that the message type must be installed in the system, i.e., it must be available in the ROS 2 environment.
 - `formats`: The output formats that this routine supports. (Can be a single format or a list of formats.)
 - `mode`: Specifies the export mode — SINGLE_FILE or MULTI_FILE. This determines whether the routine is designed for exporting data into a single file or multiple files. While this setting affects parallelization and naming conventions, you must implement the logic for single file exports yourself if you choose SINGLE_FILE mode (e.g., appending data to the same file during each function call).
 
@@ -286,52 +288,48 @@ Processors are used to modify messages before they are exported. They can be app
 You can define your own processors like this:
 
 ```python
-from ros2_unbag.core.processors.base import Processor               # import the base class
-# you can also import other packages here - e.g., numpy, cv2, etc.
+# Import the processor decorator
+from ros2_unbag.core.processors.base import Processor
 
-@Processor("sensor_msgs/msg/CompressedImage", ["recolor"])
-def recolor_compressed_image(msg, color_map):                       # define the processor function, the name of the function does not matter
+# Define the processor class with the appropriate message types and give it a name
+@Processor(["std_msgs/msg/String"], ["your_processor_name"]) 
+def your_processor_name(msg, your_parameter: str = "default", your_parameter_2: str = "template"):
     """
-    Recolor a compressed image using a cv2 color map
+    Short description of what the processor does.
 
     Args:
-        msg: Message instance.
-        Optional arguments can be passed as keyword arguments:
-        color_map: Integer or string convertible to integer specifying cv2 colormap.
+        msg: The ROS message you want to process.
+        your_parameter: Describe the parameter. This will be shown in the UI.
+        your_parameter_2: You can add more parameters as needed.
 
     Returns:
-        Message instance of the same type as the input message, with the image data recolored.
-
-    Raises:
-        ValueError: If color_map is not an integer.
-        RuntimeError: If image encoding fails.
+        The return always needs to match the incoming message type.
     """
+
+    # Validate and convert parameter
     try:
-        color_map = int(color_map)
-    except ValueError:                                              # exceptions will be forwarded to the gui
-        raise ValueError(
-            f"Invalid color map value: {color_map}. Must be an integer.")
+        your_parameter = str(your_parameter)
+        your_parameter_2 = str(your_parameter_2)
+    except ValueError:
+        raise ValueError(f"One of the parameters is not valid: {your_parameter}, {your_parameter_2}")
 
-    img_array = np.frombuffer(msg.data, np.uint8)
-    img = cv2.imdecode(
-        img_array,
-        cv2.IMREAD_GRAYSCALE)
+    # Decode ROS message if necessary
+    string_msg = msg.data  # Assuming msg is a String message
 
-    recolored = cv2.applyColorMap(img, color_map)
+    # --- Apply your processing here ---
+    processed_msg = string_msg.replace(your_parameter, your_parameter_2)
 
-    ext = '.jpg' if 'jpeg' in msg.format.lower() else '.png'
-    success, encoded = cv2.imencode(ext, recolored)
+    # Re-encode the image
+    msg.data = processed_msg
 
-    if not success:
-        raise RuntimeError("Failed to encode recolored image")
-
-    msg.data = encoded.tobytes()
-    return msg                                                      # return the modified message
-
+    return msg
 ```
+
+A template for this is available in the `templates` directory of the repository. You can copy it and modify it to suit your needs.
+
 The message type and processor name are defined in the decorator. The `Processor` decorator registers the function as a processor for the specified message type and name. It has the following attributes:
 
-- `msg_types`: The message types that this processor can handle. (Can be a single type or a list of types.)
+- `msg_types`: The message types that this processor can handle. (Can be a single type or a list of types.) Note that the message type must be installed in the system, i.e., it must be available in the ROS 2 environment.
 - `name`: The name of the processor, which is used to identify it in the system.
 
 You can import your own processors by calling 

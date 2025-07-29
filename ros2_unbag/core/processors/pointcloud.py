@@ -31,13 +31,13 @@ from sensor_msgs.msg import PointCloud2
 
 
 @Processor("sensor_msgs/msg/PointCloud2", ["transform_from_yaml"])
-def apply_transform_from_yaml(msg, custom_frame_path):
+def apply_transform_from_yaml(msg, custom_frame_path: str):
     """
     Apply a rigid-body transform from a YAML file to all points in a PointCloud2 message.
 
     Args:
         msg: PointCloud2 message instance.
-        custom_frame_path: Path to YAML file containing translation and rotation.
+        custom_frame_path: Path to YAML file containing translation as x, y, z and rotation as x, y, z, w.
 
     Returns:
         PointCloud2: Transformed PointCloud2 message.

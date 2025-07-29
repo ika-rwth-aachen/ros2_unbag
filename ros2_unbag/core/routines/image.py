@@ -23,8 +23,10 @@
 import cv2
 import numpy as np
 from pathlib import Path
+import re
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
+from ros2_unbag.core.utils.image_utils import convert_image
 
 
 @ExportRoutine("sensor_msgs/msg/CompressedImage", ["image/png", "image/jpeg"], mode=ExportMode.MULTI_FILE)
@@ -61,8 +63,7 @@ def export_compressed_image(msg, path: Path, fmt: str, metadata: ExportMetadata)
 @ExportRoutine("sensor_msgs/msg/Image", ["image/png", "image/jpeg"], mode=ExportMode.MULTI_FILE)
 def export_raw_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
-    Export a raw Image ROS message to PNG or JPEG.
-    Convert supported encodings (bgr8, rgb8, bgra8) to BGR, then write with OpenCV; error on unsupported formats.
+    Export a raw Image ROS message to PNG or JPEG using OpenCV.
 
     Args:
         msg: Image ROS message instance.
@@ -76,19 +77,12 @@ def export_raw_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
     Raises:
         ValueError: If encoding or export format is unsupported.
     """
-    if msg.encoding in ("bgr8", "rgb8", "bgra8"):
-        img_array = np.frombuffer(msg.data, np.uint8).reshape(msg.height, msg.width, -1)
 
-        if msg.encoding == "rgb8":
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        elif msg.encoding == "bgra8":
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_BGRA2BGR)
-    else:
-        raise ValueError(f"Unsupported encoding: {msg.encoding}")
+    raw = np.frombuffer(msg.data, dtype=np.uint8)
+    img = convert_image(raw, msg.encoding, msg.width, msg.height)
 
-    ext_map = {"image/png": ".png", "image/jpeg": ".jpg"}
-    ext = ext_map.get(fmt)
+    ext = { "image/png": ".png", "image/jpeg": ".jpg" }.get(fmt)
     if not ext:
         raise ValueError(f"Unsupported export format: {fmt}")
 
-    cv2.imwrite(path.with_suffix(ext), img_array)
+    cv2.imwrite(path.with_suffix(ext), img)
