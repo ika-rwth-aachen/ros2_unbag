@@ -64,8 +64,6 @@ def export_raw_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export a raw Image ROS message to PNG or JPEG using OpenCV.
 
-    Supports multiple encodings including mono, rgb, bgr, yuv, and Bayer formats.
-
     Args:
         msg: Image ROS message instance.
         path: Output file path (without extension).
