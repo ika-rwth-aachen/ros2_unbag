@@ -61,8 +61,9 @@ def export_compressed_image(msg, path: Path, fmt: str, metadata: ExportMetadata)
 @ExportRoutine("sensor_msgs/msg/Image", ["image/png", "image/jpeg"], mode=ExportMode.MULTI_FILE)
 def export_raw_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
-    Export a raw Image ROS message to PNG or JPEG.
-    Convert supported encodings (bgr8, rgb8, bgra8) to BGR, then write with OpenCV; error on unsupported formats.
+    Export a raw Image ROS message to PNG or JPEG using OpenCV.
+
+    Supports multiple encodings including mono, rgb, bgr, yuv, and Bayer formats.
 
     Args:
         msg: Image ROS message instance.
@@ -76,19 +77,34 @@ def export_raw_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
     Raises:
         ValueError: If encoding or export format is unsupported.
     """
-    if msg.encoding in ("bgr8", "rgb8", "bgra8"):
-        img_array = np.frombuffer(msg.data, np.uint8).reshape(msg.height, msg.width, -1)
+    converters = {
+        "bgr8":       lambda img: img,
+        "rgb8":       lambda img: cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
+        "bgra8":      lambda img: cv2.cvtColor(img, cv2.COLOR_BGRA2BGR),
+        "rgba8":      lambda img: cv2.cvtColor(img, cv2.COLOR_RGBA2BGR),
+        "mono8":      lambda img: img.reshape(msg.height, msg.width),
+        "mono16":     lambda img: img.reshape(msg.height, msg.width),
+        "yuv422":     lambda img: cv2.cvtColor(img, cv2.COLOR_YUV2BGR_Y422),
+        "bayer_rggb8": lambda img: cv2.cvtColor(img, cv2.COLOR_BAYER_RG2BGR),
+        "bayer_bggr8": lambda img: cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR),
+        "bayer_gbrg8": lambda img: cv2.cvtColor(img, cv2.COLOR_BAYER_GB2BGR),
+        "bayer_grbg8": lambda img: cv2.cvtColor(img, cv2.COLOR_BAYER_GR2BGR),
+    }
 
-        if msg.encoding == "rgb8":
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        elif msg.encoding == "bgra8":
-            img_array = cv2.cvtColor(img_array, cv2.COLOR_BGRA2BGR)
-    else:
+    if msg.encoding not in converters:
         raise ValueError(f"Unsupported encoding: {msg.encoding}")
 
-    ext_map = {"image/png": ".png", "image/jpeg": ".jpg"}
-    ext = ext_map.get(fmt)
+    # Determine bytes per channel
+    dtype = np.uint16 if msg.encoding == "mono16" else np.uint8
+
+    # Estimate channel count from data size
+    channels = len(msg.data) // (msg.height * msg.width * np.dtype(dtype).itemsize)
+    img = np.frombuffer(msg.data, dtype).reshape(msg.height, msg.width, -1 if channels > 1 else 1)
+
+    img = converters[msg.encoding](img)
+
+    ext = { "image/png": ".png", "image/jpeg": ".jpg" }.get(fmt)
     if not ext:
         raise ValueError(f"Unsupported export format: {fmt}")
 
-    cv2.imwrite(path.with_suffix(ext), img_array)
+    cv2.imwrite(path.with_suffix(ext), img)
