@@ -106,26 +106,28 @@ class Processor:
     @classmethod
     def get_args(cls, msg_type, fmt):
         """
-        Return a dict of argument names and parameters (excluding 'msg') for the handler.
+        Return a dict mapping argument names to a tuple: (inspect.Parameter, docstring_description).
 
         Args:
             msg_type: Message type string.
             fmt: Processor format string.
 
         Returns:
-            dict or None: Mapping of argument names to inspect.Parameter objects, or None if not found.
+            dict or None: Mapping of argument names to (Parameter, docstring description), or None.
         """
-        # Get the argument names for the processing function
         handler = cls.get_handler(msg_type, fmt)
-        if handler:
-            signature = inspect.signature(handler)
-            # Exclude 'msg' parameter (always passed automatically)
-            return {
-                name: param
-                for name, param in signature.parameters.items()
-                if name != 'msg'
-            }
-        return None
+        if not handler:
+            return None
+
+        signature = inspect.signature(handler)
+        docstring = inspect.getdoc(handler)
+        param_docs = cls._extract_param_docs(docstring)
+
+        return {
+            name: (param, param_docs.get(name, ""))
+            for name, param in signature.parameters.items()
+            if name != 'msg'
+        }
 
     @classmethod
     def get_required_args(cls, msg_type, fmt):
@@ -147,3 +149,40 @@ class Processor:
                 if param.default == inspect.Parameter.empty
             ]
         return []
+    
+    @staticmethod
+    def _extract_param_docs(docstring):
+        """
+        Extract parameter descriptions from a Google-style docstring.
+
+        Args:
+            docstring: The full docstring of the processor function.
+
+        Returns:
+            dict: Mapping of parameter name to description string.
+        """
+        import re
+
+        if not docstring:
+            return {}
+
+        param_docs = {}
+        lines = docstring.splitlines()
+        in_args = False
+        for line in lines:
+            line = line.strip()
+            if line.startswith("Args:"):
+                in_args = True
+                continue
+            if in_args:
+                if re.match(r"^\w+\s*\(.*\):", line):  # param with type
+                    key = line.split(":", 1)[0].split("(")[0].strip()
+                    desc = line.split(":", 1)[1].strip()
+                    param_docs[key] = desc
+                elif re.match(r"^\w+\s*:", line):  # param without type
+                    key = line.split(":", 1)[0].strip()
+                    desc = line.split(":", 1)[1].strip()
+                    param_docs[key] = desc
+                elif line == "":
+                    break  # end of block
+        return param_docs
