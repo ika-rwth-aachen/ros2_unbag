@@ -29,6 +29,7 @@ from pathlib import Path
 from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
+from ros2_unbag.core.utils.file_utils import get_time_from_msg
 
 
 @ExportRoutine.set_catch_all(["text/yaml@multi_file", "text/json@multi_file", "table/csv@multi_file"], mode=ExportMode.MULTI_FILE)
@@ -46,8 +47,8 @@ def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadat
     Returns:
         None
     """
-    timestamp = build_timestamp(msg)
-        
+    timestamp = get_time_from_msg(msg, return_datetime=True)
+
     if fmt == "text/json@multi_file":
         serialized_line = serialize_message_with_timestamp(msg, "json", timestamp)
         file_ending = ".json"
@@ -219,22 +220,3 @@ def flatten(d, parent_key='', sep='.'):
         else:
             items.append((new_key, v))
     return dict(items)
-
-
-def build_timestamp(msg):
-    """
-    Build a timestamp string from the current time.
-
-    Args:
-        msg: ROS message instance.
-    Returns:
-        str: Timestamp in ISO format.
-    """
-    try:
-        timestamp = datetime.fromtimestamp(msg.header.stamp.sec +
-                                            msg.header.stamp.nanosec * 1e-9)
-    except AttributeError:
-        # Fallback timestamp (receive time)
-        timestamp = datetime.fromtimestamp(msg.stamp.sec +
-                                            msg.stamp.nanosec * 1e-9)
-    return timestamp

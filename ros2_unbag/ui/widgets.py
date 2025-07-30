@@ -332,7 +332,7 @@ class ExportOptions(QtWidgets.QWidget):
         if enable and not any(cb.isChecked() for cb in self.master_checkboxes.values()):
             first_topic = next(iter(self.master_checkboxes.values()))
             first_topic.setChecked(True)
-            
+
         # Default epsilon if nearest is selected
         if mode == "nearest" and not self.eps_edit.text().strip():
             self.eps_edit.setText("0.5")
@@ -455,11 +455,11 @@ class ExportOptions(QtWidgets.QWidget):
 
             base = abs_path.text().strip()
             sub = rel_path.text().strip().lstrip("/")
-            full_path = os.path.join(base, sub) if sub else base
 
             topic_cfg = {
                 "format": fmt.currentText(),
-                "path": full_path,
+                "path": base,
+                "subfolder": sub,
                 "naming": name.text().strip()
             }
 
@@ -515,13 +515,9 @@ class ExportOptions(QtWidgets.QWidget):
                 fmt_combo.setCurrentIndex(idx)
             # Set output path and subdirectory
             path = topic_cfg.get("path", "")
-            if path:
-                abs_path = path
-                rel_path = ""
-                if "/" in path:
-                    abs_path, rel_path = path, ""
-                abs_path_edit.setText(abs_path)
-                rel_path_edit.setText(rel_path)
+            subdir = topic_cfg.get("subfolder", "").strip("/")
+            abs_path_edit.setText(path)
+            rel_path_edit.setText(subdir)
             # Set naming scheme
             name_scheme_edit.setText(topic_cfg.get("naming", ""))
             # Set master topic checkbox

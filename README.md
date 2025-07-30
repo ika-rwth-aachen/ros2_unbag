@@ -183,20 +183,36 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
 
 ```jsonc
 {
-  "bag_path": "rosbag/data.mcap",
-  "output_dir": "./out",
-  "exports": [
-    { "topic": "/cam/image_raw", "format": "image/png", "subdir": "%name" },
-    { "topic": "/imu", "format": "table/csv@multi_file", "subdir": "%name" }
-  ],
-  "resample": [
-    { "master": "/cam/image_raw", "type": "nearest", "discard_eps": 0.05 }
-  ],
-  "processing": [
-    { "topic": "/cam/image_raw", "processor": "recolor", "args": { "color_map": 2 } }
-  ],
-  "naming": "%Y-%m-%d_%H-%M-%S_%name_%index",
-  "cpu_percentage": 50
+  "/imu/pos": {
+    "format": "text/json@single_file",
+    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56",
+    "subfolder": "%name",
+    "naming": "%name"
+  },
+  "/drivers/lidar_fl/nearir_image": {
+    "format": "image/png",
+    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56",
+    "subfolder": "%name",
+    "naming": "%name_%index"
+  },
+  "/drivers/lidar_fl/pointcloud": {
+    "format": "pointcloud/pcd",
+    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56",
+    "subfolder": "%name",
+    "naming": "%name_%index",
+    "processor": "transform_from_yaml",
+    "processor_args": {
+      "custom_frame_path": "test.yml"
+    }
+  },
+  "__global__": {
+    "cpu_percentage": 85.0,
+    "resample_config": {
+      "master_topic": "/drivers/lidar_fl/pointcloud",
+      "association": "nearest",
+      "discard_eps": 0.5
+      }
+  }
 }
 ```
 
