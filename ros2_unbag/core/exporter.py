@@ -53,6 +53,7 @@ class Exporter:
 
         self.bag_reader = bag_reader
         self.config = export_config
+        self.global_config = global_config
         self.topic_types = self.bag_reader.topic_types
         self.progress_callback = progress_callback
 
@@ -66,7 +67,7 @@ class Exporter:
         # one queue per sequential topic
         self.seq_queues = {t: mp.Queue() for t in self.sequential_topics}
 
-        self.num_workers = max(1, int(mp.cpu_count() * global_config["cpu_percentage"] * 0.01))
+        self.num_workers = max(1, int(mp.cpu_count() * self.global_config["cpu_percentage"] * 0.01))
         self.num_parallel_workers = max(1, self.num_workers - len(self.sequential_topics))
 
         self.logger.info(f"Using {self.num_workers} workers for export, "
@@ -214,8 +215,7 @@ class Exporter:
             dropped_frames = defaultdict(int)  # topic -> count
 
             # Get resampling config: master topic, association strategy, and discard threshold
-            master_topic, assoc_strategy, discard_eps = self._get_resampling_config(
-            )
+            master_topic, assoc_strategy, discard_eps = self._get_resampling_config()
 
             if master_topic is None:
                 # No resampling configured – export all messages individually
@@ -248,19 +248,19 @@ class Exporter:
         Returns:
             tuple: (master_topic: str or None, assoc_strategy: str or None, discard_eps: float or None)
         """
-        for topic, cfg in self.config.items():
-            rcfg = cfg.get('resample_config')
-            if rcfg and rcfg.get('is_master', False):
-                self.logger.info(
-                    f"Topic '{topic}' is marked as master. Remember, that only one master topic is supported."
-                )
-                assoc_strategy = rcfg.get('association', 'last')
-                discard_eps = rcfg.get('discard_eps')
-                if assoc_strategy == 'nearest' and discard_eps is None:
-                    raise ValueError(
-                        f"'nearest' association requires 'discard_eps' for topic '{topic}'."
-                    )
-                return topic, assoc_strategy, discard_eps
+        global_rcfg = self.global_config.get("resample_config")
+        if global_rcfg:
+            master = global_rcfg.get("master_topic")
+            if master and master not in self.config:
+                raise ValueError(f"Master topic '{master}' not found in export config.")
+            if not master:
+                raise ValueError("Resample_config must define a 'master_topic'")
+            assoc = global_rcfg.get("association", "last")
+            discard_eps = global_rcfg.get("discard_eps")
+            if assoc == "nearest" and discard_eps is None:
+                raise ValueError("'nearest' association requires 'discard_eps' in global config.")
+            self.logger.info(f"Resampling with strategy '{assoc}' to master topic '{master}'")
+            return master, assoc, discard_eps
         return None, None, None
 
 
@@ -468,9 +468,10 @@ class Exporter:
         """
         if not dropped_frames:
             return
-        self.logger.info("\nDropped frames per topic:")
+        self.logger.info("The syncronization process dropped frames caused by the discard eps.\n"
+        "The following topics were not available at frame generation time:")
         for topic, count in dropped_frames.items():
-            self.logger.info(f"  {topic}: {count}")
+            self.logger.info(f"  {topic}: {count} times")
 
 
     def _enqueue_export_task(self, topic, msg):

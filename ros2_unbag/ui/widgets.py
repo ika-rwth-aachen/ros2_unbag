@@ -328,6 +328,11 @@ class ExportOptions(QtWidgets.QWidget):
         for cb in self.master_checkboxes.values():
             cb.setEnabled(enable)
 
+        # Enable first checkbox by default if resampling is enabled
+        if enable and not any(cb.isChecked() for cb in self.master_checkboxes.values()):
+            first_topic = next(iter(self.master_checkboxes.values()))
+            first_topic.setChecked(True)
+            
         # Default epsilon if nearest is selected
         if mode == "nearest" and not self.eps_edit.text().strip():
             self.eps_edit.setText("0.5")
@@ -435,6 +440,12 @@ class ExportOptions(QtWidgets.QWidget):
                 raise ValueError(
                     "One topic must be marked as Master when synchronization is enabled."
                 )
+            
+            global_config["resample_config"] = {
+                "master_topic": master_topic,
+                "association": assoc_mode,
+                "discard_eps": eps
+            }
 
         for topic, widgets in self.config_widgets.items():
             if assoc_mode == "no resampling":
@@ -451,12 +462,6 @@ class ExportOptions(QtWidgets.QWidget):
                 "path": full_path,
                 "naming": name.text().strip()
             }
-
-            if assoc_mode != "no resampling" and is_master.isChecked():
-                rcfg = {"is_master": True, "association": assoc_mode}
-                if assoc_mode == "nearest" or eps is not None:
-                    rcfg["discard_eps"] = eps
-                topic_cfg["resample_config"] = rcfg
 
             if processor and processor.currentText() != "No Processor":
                 proc_name = processor.currentText()

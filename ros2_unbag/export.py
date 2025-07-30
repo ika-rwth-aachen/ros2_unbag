@@ -188,6 +188,7 @@ class ExportCommand(CommandExtension):
             dict: Configuration dictionary for export.
         """
         config = {}
+        config["__global__"] = {"cpu_percentage": args.cpu_percentage}
         for spec in args.export or []:
             parts = spec.split(":")
             if len(parts) < 2:
@@ -209,14 +210,16 @@ class ExportCommand(CommandExtension):
                 parts = param_str.split(",")
                 association = parts[0]
                 discard_eps = float(parts[1]) if len(parts) > 1 else None
+
                 if association not in ("last", "nearest"):
                     sys.exit("association must be 'last' or 'nearest'")
                 if association == "nearest" and discard_eps is None:
                     sys.exit("nearest requires discard_eps")
                 if topic_spec not in config:
                     sys.exit(f"Resample topic {topic_spec} not in --export")
-                config[topic_spec]['resample_config'] = {
-                    "is_master": True,
+
+                config["__global__"]["resample_config"] = {
+                    "master_topic": topic_spec,
                     "association": association,
                     "discard_eps": discard_eps
                 }
@@ -242,9 +245,6 @@ class ExportCommand(CommandExtension):
                         processor_args[k.strip()] = v.strip()
                     config[topic]['processor_args'] = processor_args
 
-        config["__global__"] = {
-            "cpu_percentage": args.cpu_percentage
-        }
         return config
     
     def install_routine(self, path):
