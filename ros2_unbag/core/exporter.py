@@ -491,6 +491,7 @@ class Exporter:
 
         fmt = cfg['format']
         path = cfg['path']
+        subfolder = cfg.get('subfolder', "").strip("/")
         naming = cfg['naming']
         index = self.index_map[topic]
         self.index_map[topic] += 1
@@ -506,6 +507,7 @@ class Exporter:
         for key, value in replacements.items():
             naming = naming.replace(key, value)
             path = path.replace(key, value)
+            subfolder = subfolder.replace(key, value)
 
         # Check if the naming still contains a placeholder
         if "%" in naming:
@@ -520,7 +522,7 @@ class Exporter:
         else:
             filename = naming
 
-        path = Path(path)
+        path = Path(path) / subfolder
         path.mkdir(parents=True, exist_ok=True)
         full_path = path / filename
 

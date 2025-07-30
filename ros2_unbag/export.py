@@ -197,10 +197,10 @@ class ExportCommand(CommandExtension):
             subdir = parts[2] if len(parts) > 2 else ""
             if topic not in bag_reader.topic_types:
                 sys.exit(f"Topic {topic} not found in bag.")
-            export_path = os.path.join(args.output_dir or ".", subdir.strip("/"))
             config[topic] = {
                 "format": fmt,
-                "path": export_path,
+                "path": args.output_dir or ".",
+                "subfolder": subdir.strip("/"),
                 "naming": args.naming.strip()
             }
 
