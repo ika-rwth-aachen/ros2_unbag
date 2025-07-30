@@ -185,17 +185,20 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
 {
   "/imu/pos": {
     "format": "text/json@single_file",
-    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56/%name",
+    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56",
+    "subfolder": "%name",
     "naming": "%name"
   },
   "/drivers/lidar_fl/nearir_image": {
     "format": "image/png",
-    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56/%name",
+    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56",
+    "subfolder": "%name",
     "naming": "%name_%index"
   },
   "/drivers/lidar_fl/pointcloud": {
     "format": "pointcloud/pcd",
-    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56/%name",
+    "path": "/docker-ros/data/rosbag2_2025_08_19-12_34_56",
+    "subfolder": "%name",
     "naming": "%name_%index",
     "processor": "transform_from_yaml",
     "processor_args": {
