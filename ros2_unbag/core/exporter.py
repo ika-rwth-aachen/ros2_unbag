@@ -29,6 +29,7 @@ import threading
 
 from ros2_unbag.core.processors.base import Processor
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
+from ros2_unbag.core.utils.file_utils import get_time_from_msg
 
 
 class Exporter:
@@ -310,12 +311,8 @@ class Exporter:
             cfg = self.config.get(topic)
             if not cfg:
                 continue
-            
-            try:
-                ts = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-            except AttributeError:
-                # Fallback timestamp (receive time)
-                ts = msg.stamp.sec + msg.stamp.nanosec * 1e-9
+
+            ts = get_time_from_msg(msg, return_datetime=False)
 
             latest_ts_seen = max(latest_ts_seen, ts)
             latest_messages[topic] = (ts, msg)
@@ -380,11 +377,7 @@ class Exporter:
             if not cfg:
                 continue
 
-            try:
-                ts = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-            except AttributeError:
-                # Fallback timestamp (receive time)
-                ts = msg.stamp.sec + msg.stamp.nanosec * 1e-9
+            ts = get_time_from_msg(msg, return_datetime=False)
             
             latest_ts_seen = max(latest_ts_seen, ts)
             buffers[topic].append((ts, msg))
@@ -512,12 +505,7 @@ class Exporter:
         # Check if the naming still contains a placeholder
         if "%" in naming:
             # Build timestamp for filename
-            try:
-                ts_float = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-            except AttributeError:
-                # Fallback timestamp (receive time)
-                ts_float = msg.stamp.sec + msg.stamp.nanosec * 1e-9
-            timestamp = datetime.fromtimestamp(ts_float)
+            timestamp = get_time_from_msg(msg, return_datetime=True)
             filename = timestamp.strftime(naming)
         else:
             filename = naming
@@ -615,21 +603,3 @@ class Exporter:
                     # Handle exceptions in progress callback
                     self.logger.error(f"Error in progress callback: {done}/{self.max_progress_count}")
                     pass
-
-
-    def _format_ros_timestamp(self, header):
-        """
-        Format ROS header timestamp as 'seconds_nanoseconds' with zero padding, or return 'no_timestamp' on error.
-
-        Args:
-            header: ROS message header with stamp attribute.
-
-        Returns:
-            str: Formatted timestamp string.
-        """
-        try:
-            sec = header.stamp.sec
-            nsec = header.stamp.nanosec
-            return f"{sec:010d}_{nsec:09d}"
-        except AttributeError:
-            return "no_timestamp"
