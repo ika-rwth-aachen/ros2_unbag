@@ -80,7 +80,7 @@ def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetada
     Returns:
         None
     """
-    timestamp = build_timestamp(msg)
+    timestamp = get_time_from_msg(msg, return_datetime=True)
 
     if fmt == "text/json@single_file":
         serialized_line = serialize_message_with_timestamp(msg, "json", timestamp)

@@ -67,8 +67,16 @@ class ExportRoutine:
         Returns:
             ExportRoutine: The routine instance itself.
         """
-        self.func = func
-        return self
+        storage = defaultdict(dict)  # Define a persistent storage for each topic
+
+        def wrapper(msg, path, fmt, metadata, topic=None):
+            wrapper.persistent_storage = storage[topic] if topic else {}
+            return func(msg, path, fmt, metadata)
+
+        wrapper.persistent_storage = {}  # Initialize persistent storage
+        self.func = wrapper
+        return wrapper
+
 
     @classmethod
     def register(cls, routine):
@@ -152,8 +160,8 @@ class ExportRoutine:
         """
         def decorator(func):
             routine = ExportRoutine(msg_types=[], formats=formats, mode=mode)
-            routine.func = func
+            wrapped_func = routine(func)
             for fmt in formats:
                 cls.catch_all_registry[fmt].append(routine)
-            return func
+            return wrapped_func
         return decorator
