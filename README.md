@@ -6,7 +6,6 @@
   <img src="https://img.shields.io/github/license/ika-rwth-aachen/ros2_unbag"/>
   <a href="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml"><img src="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/build_docker.yml/badge.svg"/></a>
   <a href="https://pypi.org/project/ros2-unbag/"><img src="https://img.shields.io/pypi/v/ros2-unbag?label=PyPI"/></a>
-  <a href="https://pypi.org/project/ros2-unbag/"><img src="https://img.shields.io/pypi/dm/ros2-unbag?color=blue&label=PyPI%20downloads"/></a>
 </p>
 
 *ros2 unbag* is a ROS 2 CLI plugin with optional GUI for extracting selected topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
@@ -168,13 +167,13 @@ In addition to these required flags, there are some optional flags. See the tabl
 | **`--uninstall-processor`** | (flag)                                   | Interactive removal of an installed processor.                                                            | Standalone                         | -              |
 | **`--help`**                | (flag)                                   | Show usage information and exit.                                                                          | Standalone                         | -              |
 
-⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
-
 Example: 
 ```bash
 ros2 unbag rosbag/rosbag.mcap 
     --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --export /radar/point_cloud:pointcloud/pcd:radar --resample /lidar/point_cloud:last,0.2
 ```
+
+⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
 
 ## Config File
 When using ros2 unbag, you can define your export settings in a JSON configuration file. This works in the GUI, as well as in the CLI version. It allows you to easily reuse your export settings without having to specify them on the command line every time.
@@ -224,6 +223,8 @@ Export routines define the way how messages are exported from the ros2 bag file 
 | ------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | **image/png**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                                                                |  
 | **image/jpeg**      | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                                                               |
+| **video/mp4**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to MP4.                                                                                       |
+| **video/avi**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to AVI.                                                                                       |
 | **pointcloud/pkl**  | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                             |
 | **pointcloud/xyz**  | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.  |
 | **pointcloud/pcd**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                          |

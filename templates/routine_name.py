@@ -54,6 +54,10 @@ def your_export_routine(msg, path: Path, fmt: str, metadata: ExportMetadata):
     # Validate or parse parameters if needed
     if fmt != "text/plain":
         raise ValueError(f"Unsupported format: {fmt}")
+    
+    # If you need persistent storage, you can use the persistent_storage attribute of the routine
+    # this is a global dictionary that can be used to store state across calls
+    ps = your_export_routine.persistent_storage
 
     # --- Apply export logic here ---
     text = str(msg.data)
