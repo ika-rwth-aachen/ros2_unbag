@@ -145,8 +145,8 @@ class Processor:
         args = cls.get_args(msg_type, fmt)
         if args:
             return [
-                name for name, param in args.items()
-                if param.default == inspect.Parameter.empty
+                name for name, (param, _) in args.items()
+                if isinstance(param, inspect.Parameter) and param.default == inspect.Parameter.empty
             ]
         return []
     

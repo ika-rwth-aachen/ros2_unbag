@@ -164,6 +164,7 @@ class UnbagApp(QtWidgets.QWidget):
 
         self.pending_config = None
         self.bag_loaded = False
+        self.current_exporter = None
 
     def load_bag(self):
         """
@@ -498,7 +499,8 @@ class UnbagApp(QtWidgets.QWidget):
         Returns:
             None
         """
-        self.current_exporter.abort_export()
+        if self.current_exporter:
+            self.current_exporter.abort_export()
 
     @QtCore.Slot(Exception)
     def handle_export_error(self, e):
