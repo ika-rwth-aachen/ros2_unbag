@@ -23,7 +23,6 @@
 import cv2
 import numpy as np
 from pathlib import Path
-import re
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 from ros2_unbag.core.utils.image_utils import convert_image
