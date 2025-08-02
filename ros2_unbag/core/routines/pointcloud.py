@@ -25,6 +25,7 @@ from pathlib import Path
 import pickle
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
+from ros2_unbag.core.utils import rust_utils
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"], mode=ExportMode.MULTI_FILE)
@@ -111,13 +112,16 @@ def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
         f"POINTS {num_points}", "DATA binary"
     ]
 
+    # Call Rust function to pack binary block efficiently
+    packed_bytes = rust_utils.pack_pointcloud_data(
+        bytes(msg.data),
+        offsets,
+        fmts,
+        msg.point_step
+    )
+
+    # Write to file
     with open(path.with_suffix(".pcd"), "wb") as f:
-        # Write header to file
         for line in header:
             f.write((line + "\n").encode("ascii"))
-
-        # Write point data
-        for i in range(0, len(msg.data), msg.point_step):
-            for fmt, off in zip(fmts, offsets):
-                val = struct.unpack_from(fmt, msg.data, offset=i + off)[0]
-                f.write(struct.pack(fmt, val))
+        f.write(packed_bytes)

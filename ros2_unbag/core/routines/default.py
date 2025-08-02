@@ -26,7 +26,7 @@ import fcntl
 import json
 from pathlib import Path
 
-from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
+from rosidl_runtime_py import message_to_ordereddict
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 from ros2_unbag.core.utils.file_utils import get_time_from_msg

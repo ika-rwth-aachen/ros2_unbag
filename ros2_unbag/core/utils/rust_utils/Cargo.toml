@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.21", features = ["extension-module", "auto-initialize"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
+byteorder = "1.5"
