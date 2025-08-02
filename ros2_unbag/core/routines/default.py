@@ -30,6 +30,7 @@ from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 from ros2_unbag.core.utils.file_utils import get_time_from_msg
+from ros2_unbag.core.utils import rust_utils
 
 
 @ExportRoutine.set_catch_all(["text/yaml@multi_file", "text/json@multi_file", "table/csv@multi_file"], mode=ExportMode.MULTI_FILE)
@@ -131,7 +132,8 @@ def serialize_message_with_timestamp(msg, fmt, timestamp):
         serialized_line_with_timestamp = f'"{timestamp.isoformat()}": {serialized_line}'
         return serialized_line_with_timestamp
     elif fmt == "yaml":
-        yaml_content = message_to_yaml(msg)
+        message_dict = message_to_ordereddict(msg)
+        yaml_content = rust_utils.serialize_yaml(message_dict)
         indented_yaml_content = "\n".join(f"  {line}" for line in yaml_content.splitlines())
         serialized_line_with_timestamp = f"{timestamp}:\n{indented_yaml_content}"
         return serialized_line_with_timestamp

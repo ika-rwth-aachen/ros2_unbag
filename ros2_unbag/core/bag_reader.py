@@ -138,50 +138,6 @@ class BagReader:
             for topic in self.metadata.topics_with_message_count
         }
 
-    def get_topics_with_frequency(self):
-        """
-        Calculate and return approximate frequency (messages per second) for each topic.
-
-        Args:
-            None
-
-        Returns:
-            list: List of dicts with topic name, type, and frequency.
-
-        Raises:
-            RuntimeError: If frequency calculation fails.
-        """
-        try:
-            reader = SequentialReader()
-            storage_id = self._detect_storage_id()
-            storage_options = StorageOptions(uri=self.bag_path,
-                                             storage_id=storage_id)
-            converter_options = ConverterOptions(
-                input_serialization_format='cdr',
-                output_serialization_format='cdr')
-            reader.open(storage_options, converter_options)
-
-            topic_timestamps = defaultdict(list)
-            while reader.has_next():
-                topic, _, t = reader.read_next()
-                topic_timestamps[topic].append(t)
-
-            result = []
-            for topic, timestamps in topic_timestamps.items():
-                timestamps.sort()
-                duration = (timestamps[-1] -
-                            timestamps[0]) / 1e9 if len(timestamps) > 1 else 0.0
-                frequency = len(timestamps) / duration if duration > 0 else 0.0
-                result.append({
-                    "name": topic,
-                    "type": self.topic_types.get(topic, "unknown"),
-                    "frequency": frequency
-                })
-
-            return result
-        except Exception as e:
-            raise RuntimeError(f"Failed to calculate frequencies: {e}")
-
     def set_filter(self, selected_topics):
         """
         Apply a topic filter to the reader for subsequent message reads.
