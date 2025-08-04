@@ -6,6 +6,7 @@ on:
       - main
     tags:
       - '*'
+  workflow_dispatch:
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -32,6 +33,19 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
           rm -rf /var/lib/apt/lists/*
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $GITHUB_ENV
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Install build tooling
         run: python3 -m pip install -U build twine
