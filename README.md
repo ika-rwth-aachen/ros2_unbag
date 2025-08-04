@@ -67,7 +67,13 @@ Install the required apt dependencies:
 ```bash
 sudo apt update
 sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
-````
+```
+
+If you want to build from source, you also need to install rust.
+
+```bash
+curl https://sh.rustup.rs -sSf | sh
+```
 
 ### From PyPI (via pip)
 
@@ -81,16 +87,6 @@ pip install ros2-unbag
 git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
 cd ros2_unbag
 pip install .
-```
-
-### In a ROS 2 workspace (via colcon)
-
-```bash
-cd ~/ros2_ws/src
-git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
-cd ..
-colcon build --packages-select ros2_unbag
-source install/setup.bash
 ```
 
 ### Docker 

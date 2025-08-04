@@ -117,6 +117,7 @@ def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
         bytes(msg.data),
         offsets,
         fmts,
+        counts,
         msg.point_step
     )
 

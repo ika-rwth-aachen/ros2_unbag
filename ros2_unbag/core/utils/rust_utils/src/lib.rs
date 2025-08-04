@@ -111,55 +111,85 @@ fn convert_pyany_to_yaml_value(obj: &PyAny) -> PyResult<YamlValue> {
 #[pyfunction]
 fn pack_pointcloud_data<'py>(
     py: Python<'py>,
-    data: &PyAny,              // Python bytes or bytearray
-    offsets: Vec<usize>,       // per-field offset
-    fmts: Vec<String>,         // per-field format char ("f", "B", etc.)
-    point_step: usize          // size of a point
+    data: &PyAny,
+    offsets: Vec<usize>,
+    fmts: Vec<String>,
+    counts: Vec<usize>,
+    point_step: usize
 ) -> PyResult<&'py PyBytes> {
     let raw = data
         .extract::<&[u8]>()
         .map_err(|_| PyValueError::new_err("Expected bytes-like object for 'data'"))?;
 
-    if offsets.len() != fmts.len() {
-        return Err(PyValueError::new_err("offsets and fmts must have the same length"));
+    if offsets.len() != fmts.len() || offsets.len() != counts.len() {
+        return Err(PyValueError::new_err("offsets, fmts, and counts must have the same length"));
     }
 
     let num_points = raw.len() / point_step;
-    let mut out = Vec::with_capacity(raw.len()); // output buffer
+    let mut out = Vec::with_capacity(raw.len());
 
     for i in 0..num_points {
         let base = i * point_step;
-        for (j, fmt) in fmts.iter().enumerate() {
-            let off = base + offsets[j];
-            match fmt.as_str() {
-                "B" => out.write_u8(raw[off])?,
-                "H" => {
-                    let val = u16::from_le_bytes(raw[off..off+2].try_into().unwrap());
-                    out.write_u16::<LittleEndian>(val)?;
-                },
-                "I" => {
-                    let val = u32::from_le_bytes(raw[off..off+4].try_into().unwrap());
-                    out.write_u32::<LittleEndian>(val)?;
-                },
-                "b" => out.write_i8(raw[off] as i8)?,
-                "h" => {
-                    let val = i16::from_le_bytes(raw[off..off+2].try_into().unwrap());
-                    out.write_i16::<LittleEndian>(val)?;
-                },
-                "i" => {
-                    let val = i32::from_le_bytes(raw[off..off+4].try_into().unwrap());
-                    out.write_i32::<LittleEndian>(val)?;
-                },
-                "f" => {
-                    let val = f32::from_le_bytes(raw[off..off+4].try_into().unwrap());
-                    out.write_f32::<LittleEndian>(val)?;
-                },
-                _ => return Err(PyValueError::new_err(format!("Unsupported fmt: {}", fmt))),
+        for j in 0..fmts.len() {
+            let fmt = &fmts[j];
+            let count = counts[j];
+            let size = fmt_size(fmt)?;
+
+            for c in 0..count {
+                let off = base + offsets[j] + c * size;
+                if off + size > raw.len() {
+                    return Err(PyValueError::new_err("Field offset out of bounds"));
+                }
+
+                match fmt.as_str() {
+                    "B" => out.write_u8(raw[off])?,
+                    "H" => {
+                        let val = u16::from_le_bytes(raw[off..off+2].try_into().unwrap());
+                        out.write_u16::<LittleEndian>(val)?;
+                    },
+                    "I" => {
+                        let val = u32::from_le_bytes(raw[off..off+4].try_into().unwrap());
+                        out.write_u32::<LittleEndian>(val)?;
+                    },
+                    "b" => out.write_i8(raw[off] as i8)?,
+                    "h" => {
+                        let val = i16::from_le_bytes(raw[off..off+2].try_into().unwrap());
+                        out.write_i16::<LittleEndian>(val)?;
+                    },
+                    "i" => {
+                        let val = i32::from_le_bytes(raw[off..off+4].try_into().unwrap());
+                        out.write_i32::<LittleEndian>(val)?;
+                    },
+                    "f" => {
+                        let val = f32::from_le_bytes(raw[off..off+4].try_into().unwrap());
+                        out.write_f32::<LittleEndian>(val)?;
+                    },
+                    _ => return Err(PyValueError::new_err(format!("Unsupported fmt: {}", fmt))),
+                }
             }
         }
     }
 
     Ok(PyBytes::new(py, &out))
+}
+
+/// Get the size in bytes for a given format specifier.
+///
+/// Args:
+///     fmt (str): The format specifier (e.g., "B", "H", "I", "b", "h", "i", "f").
+///
+/// Returns:
+///     int: The size in bytes for the format specifier.
+///
+/// Raises:
+///     ValueError: If the format specifier is unknown.
+fn fmt_size(fmt: &str) -> PyResult<usize> {
+    match fmt {
+        "B" | "b" => Ok(1),
+        "H" | "h" => Ok(2),
+        "I" | "i" | "f" => Ok(4),
+        _ => Err(PyValueError::new_err(format!("Unknown format specifier: {}", fmt))),
+    }
 }
 
 
