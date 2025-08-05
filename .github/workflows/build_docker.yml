@@ -84,8 +84,8 @@ jobs:
         WORKDIR /docker-ros/ws/\${REPO_NAME}
         RUN pip install .
 
-        RUN find /docker-ros/ws/\${REPO_NAME} -name "*.egg-info" -type d -exec rm -rf {} + && \
-            find /docker-ros/ws/\${REPO_NAME} -name "__pycache__" -type d -exec rm -rf {} +
+        RUN rm -rf /docker-ros/ws/\${REPO_NAME}
+        WORKDIR /docker-ros/ws
         EOF
 
     - name: Build final image

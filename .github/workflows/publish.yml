@@ -22,6 +22,7 @@ jobs:
     environment:
       name: PyPI
       url: https://pypi.org/project/ros2-unbag/
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,18 +32,18 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
+            curl libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
           rm -rf /var/lib/apt/lists/*
           curl https://sh.rustup.rs -sSf | sh -s -- -y
-          echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $GITHUB_ENV
+          echo "PATH=/root/.cargo/bin:$PATH" >> $GITHUB_ENV
 
       - name: Cache cargo registry and target
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
+            /root/.cargo/registry
+            /root/.cargo/git
+            ${{ github.workspace }}/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
