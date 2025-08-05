@@ -1,5 +1,3 @@
 Dockerfile.dev
 Dockerfile.final
 .github/
-.git
-.gitignore
