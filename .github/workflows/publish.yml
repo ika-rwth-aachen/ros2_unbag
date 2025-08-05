@@ -35,7 +35,7 @@ jobs:
             curl libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
           rm -rf /var/lib/apt/lists/*
           curl https://sh.rustup.rs -sSf | sh -s -- -y
-          echo "PATH=/root/.cargo/bin:$PATH" >> $GITHUB_ENV
+          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
 
       - name: Cache cargo registry and target
         uses: actions/cache@v4
