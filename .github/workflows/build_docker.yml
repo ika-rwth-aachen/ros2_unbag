@@ -1,13 +1,102 @@
-name: Build Docker Image
+name: Build and Push Docker Image
 
-on: push
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+
 jobs:
-  docker-ros:
+  build-and-push:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: ika-rwth-aachen/docker-ros@main
-        with:
-          base-image: rwthika/ros2:jazzy
-          command: ros2 unbag
-          target: dev,run
-          enable-slim: false
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set variables
+      id: vars
+      run: |
+        echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+        echo "REPO_NAME=$(basename $GITHUB_REPOSITORY)" >> $GITHUB_ENV
+
+        echo "GITHUB_REF_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+        echo "GITHUB_REF_TYPE=${GITHUB_REF_TYPE}" >> $GITHUB_ENV
+
+    - name: Set tags
+      run: |
+        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+          echo "TAG=latest-dev_${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          echo "FINAL_TAG=latest_${GITHUB_REF_NAME}" >> $GITHUB_ENV
+        elif [[ "$GITHUB_REF_NAME" == "main" ]]; then
+          echo "TAG=latest-dev" >> $GITHUB_ENV
+          echo "FINAL_TAG=latest" >> $GITHUB_ENV
+        else
+          echo "TAG=latest-dev_${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          echo "FINAL_TAG=latest_${GITHUB_REF_NAME}" >> $GITHUB_ENV
+        fi
+
+    - name: Pull base Docker image
+      run: docker pull rwthika/ros2:jazzy
+
+    - name: Create dev Dockerfile
+      run: |
+        cat <<EOF > Dockerfile.dev
+        FROM rwthika/ros2:jazzy
+
+        ARG REPO_NAME
+        COPY docker/additional-debs.txt /tmp/additional-debs.txt
+        RUN apt-get update && \
+            xargs -a /tmp/additional-debs.txt apt-get install -y && \
+            rm -rf /var/lib/apt/lists/* /tmp/additional-debs.txt
+
+        COPY docker/additional-pip-requirements.txt /tmp/requirements.txt
+        RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+            rm /tmp/requirements.txt
+
+        COPY . /docker-ros/ws/\${REPO_NAME}
+
+        RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+        ENV PATH="/root/.cargo/bin:\$PATH"
+        EOF
+
+    - name: Build dev image
+      run: |
+        docker build -f Dockerfile.dev --build-arg REPO_NAME=$REPO_NAME -t $IMAGE_NAME:$TAG .
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Push dev image
+      run: docker push $IMAGE_NAME:$TAG
+
+    - name: Create final Dockerfile
+      run: |
+        cat <<EOF > Dockerfile.final
+        FROM $IMAGE_NAME:$TAG
+
+        ARG REPO_NAME
+        WORKDIR /docker-ros/ws/\${REPO_NAME}
+        RUN pip install .
+
+        RUN find /docker-ros/ws/\${REPO_NAME} -name "*.egg-info" -type d -exec rm -rf {} + && \
+            find /docker-ros/ws/\${REPO_NAME} -name "__pycache__" -type d -exec rm -rf {} +
+        EOF
+
+    - name: Build final image
+      run: |
+        docker build -f Dockerfile.final --build-arg REPO_NAME=$REPO_NAME -t $IMAGE_NAME:$FINAL_TAG .
+
+    - name: Push final image
+      run: docker push $IMAGE_NAME:$FINAL_TAG
+
+    - name: Cleanup
+      run: |
+        rm -f Dockerfile.dev Dockerfile.final
+        docker image rm $IMAGE_NAME:$TAG || true
+        docker image rm $IMAGE_NAME:$FINAL_TAG || true
