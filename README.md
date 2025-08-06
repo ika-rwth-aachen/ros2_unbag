@@ -24,8 +24,7 @@ Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to tu
 - [Installation](#installation)  
   - [Prerequisites](#prerequisites)  
   - [From PyPI (via pip)](#from-pypi-via-pip)  
-  - [From Source](#from-source-via-pip)  
-  - [In a ROS 2 Workspace](#in-a-ros-2-workspace-via-colcon)  
+  - [From Source](#from-source)  
   - [Docker](#docker)  
 - [Quick Start](#quick-start)  
   - [GUI Mode](#gui-mode)  
@@ -67,7 +66,7 @@ Install the required apt dependencies:
 ```bash
 sudo apt update
 sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
-````
+```
 
 ### From PyPI (via pip)
 
@@ -75,22 +74,12 @@ sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libx
 pip install ros2-unbag
 ```
 
-### From source (via pip)
+### From source
 
 ```bash
 git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
 cd ros2_unbag
 pip install .
-```
-
-### In a ROS 2 workspace (via colcon)
-
-```bash
-cd ~/ros2_ws/src
-git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
-cd ..
-colcon build --packages-select ros2_unbag
-source install/setup.bash
 ```
 
 ### Docker 
