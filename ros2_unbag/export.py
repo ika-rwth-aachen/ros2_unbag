@@ -178,6 +178,16 @@ class ExportCommand(CommandExtension):
         return 0
 
     def progress(self, current, total):
+        """
+        Update the progress bar with the current progress.
+
+        Args:
+            current: Current progress value.
+            total: Total value for progress calculation.
+
+        Returns:
+            None
+        """
         if not hasattr(self, "_pbar"):
             self._pbar = tqdm(total=total)
         self._pbar.n = current
