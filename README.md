@@ -24,8 +24,7 @@ Use it as `ros2 unbag <args>` or in the GUI for a flexible, extensible way to tu
 - [Installation](#installation)  
   - [Prerequisites](#prerequisites)  
   - [From PyPI (via pip)](#from-pypi-via-pip)  
-  - [From Source](#from-source-via-pip)  
-  - [In a ROS 2 Workspace](#in-a-ros-2-workspace-via-colcon)  
+  - [From Source](#from-source)  
   - [Docker](#docker)  
 - [Quick Start](#quick-start)  
   - [GUI Mode](#gui-mode)  
@@ -67,7 +66,7 @@ Install the required apt dependencies:
 ```bash
 sudo apt update
 sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0
-````
+```
 
 ### From PyPI (via pip)
 
@@ -75,22 +74,12 @@ sudo apt install libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libx
 pip install ros2-unbag
 ```
 
-### From source (via pip)
+### From source
 
 ```bash
 git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
 cd ros2_unbag
 pip install .
-```
-
-### In a ROS 2 workspace (via colcon)
-
-```bash
-cd ~/ros2_ws/src
-git clone https://github.com/ika-rwth-aachen/ros2_unbag.git
-cd ..
-colcon build --packages-select ros2_unbag
-source install/setup.bash
 ```
 
 ### Docker 
@@ -153,7 +142,7 @@ In addition to these required flags, there are some optional flags. See the tabl
 | **`bag`**                   | `<path>`                                 | Path to ROS 2 bag file (`.db3` or `.mcap`).                                                               | CLI mode (required)                | –              |
 | **`-e, --export`**          | `/topic:format[:subdir]`                 | Topic → format export spec. Repeatable.                                                                   | CLI mode (required or `--config`)  | –              |
 | **`-o, --output-dir`**      | `<directory>`                            | Base directory for all exports.                                                                           | Optional                           | `.`            |
-| **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index`, `%Y`, `%m`, `%d`, `%ros_timestamp`, etc.                    | Optional                           | `%name_%index` |
+| **`--naming`**              | `<pattern>`                              | Filename pattern. Supports `%name`, `%index` and strftime (e.g. `%Y-%m-%d_%H-%M-%S`) - uses ROS timestamp | Optional                           | `%name_%index` |
 | **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`. | Optional                           | –              |
 | **`-p, --processing`**      | `/topic:processor[:arg1=val1,…]`         | Pre‑export processor spec. Repeatable.                                                                    | Optional                           | –              |
 | **`--cpu-percentage`**      | `<float>`                                | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                      | Optional                           | `80.0`         |
