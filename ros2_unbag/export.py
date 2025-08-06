@@ -28,6 +28,7 @@ import sys
 from PySide6 import QtWidgets
 from PySide6.QtWidgets import QMessageBox
 from ros2cli.command import CommandExtension
+from tqdm import tqdm
 
 from ros2_unbag.core.bag_reader import BagReader
 from ros2_unbag.core.exporter import Exporter
@@ -172,9 +173,18 @@ class ExportCommand(CommandExtension):
             config = self._validate_and_build_config(args, bag_reader)
 
         global_config = config.pop("__global__", {"cpu_percentage": 80.0})
-        Exporter(bag_reader, config, global_config).run()
+        Exporter(bag_reader, config, global_config, progress_callback=self.progress).run()
         print("Export complete.")
         return 0
+
+    def progress(self, current, total):
+        if not hasattr(self, "_pbar"):
+            self._pbar = tqdm(total=total)
+        self._pbar.n = current
+        self._pbar.refresh()
+        if current == total:
+            self._pbar.close()
+            del self._pbar
 
     def _validate_and_build_config(self, args, bag_reader):
         """
