@@ -58,6 +58,11 @@ class Exporter:
         self.topic_types = self.bag_reader.topic_types
         self.progress_callback = progress_callback
 
+        # check if topic exists in the bag, if not, raise an error and list all available topics
+        for topic in self.config:
+            if topic not in self.topic_types:
+                raise ValueError(f"Topic '{topic}' not found in bag. Available topics: {list(self.topic_types.keys())}")
+
         self.index_map = {t: 0 for t in self.config}
         self.sequential_topics = [t for t, c in self.config.items()
             if ExportRoutine.get_mode(self.topic_types[t], c['format']) == ExportMode.SINGLE_FILE
