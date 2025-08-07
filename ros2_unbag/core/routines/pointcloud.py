@@ -25,10 +25,10 @@ import numpy as np
 from pathlib import Path
 import pickle
 
-from pypcd4 import PointCloud, Encoding
-from pypcd4.pointcloud2 import build_dtype_from_msg
+from pypcd4 import Encoding
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
+from ros2_unbag.core.utils.pointcloud_utils import convert_pointcloud2_to_pypcd
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"], mode=ExportMode.MULTI_FILE)
@@ -85,18 +85,9 @@ def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
         None
     """
 
-    # Build dtype from message fields
-    dtype_fields = build_dtype_from_msg(msg)
-    dtype = np.dtype(dtype_fields)
-
-    # Get field names and types
-    field_names = tuple(f.name for f in msg.fields)
-    np_types = tuple(dtype[name].type for name in field_names)
-    structured_array = np.frombuffer(msg.data, dtype=dtype)
-    points_np = np.vstack([structured_array[name] for name in field_names]).T
-
     # Build point cloud
-    pc = PointCloud.from_points(points_np, field_names, np_types)
+    pc = convert_pointcloud2_to_pypcd(msg)
+
 
     # Save the point cloud to a PCD file
     if fmt == "pointcloud/pcd":

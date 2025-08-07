@@ -210,13 +210,17 @@ Export routines define the way how messages are exported from the ros2 bag file 
 
 | Identifier(s)       | Topic(s)                                                      | Description                                                                                                                      |
 | ------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **image/png**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                                                                |  
-| **image/jpeg**      | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                                                               |
-| **video/mp4**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to MP4.                                                                                       |
-| **video/avi**       | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to AVI.                                                                                       |
-| **pointcloud/pkl**  | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                             |
-| **pointcloud/xyz**  | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.  |
-| **pointcloud/pcd**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data in PCD format to a `.pcd` file.                                          |
+| **image/png**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                       |  
+| **image/jpeg**                 | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                      |
+| **video/mp4**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to MP4.                                                       |
+| **video/avi**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to AVI.                                                       |
+| **pointcloud/pkl**             | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                         |
+| **pointcloud/xyz**             | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.  |
+| **pointcloud/pcd**             | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data* in PCD format to a `.pcd` file.                                          |
+| **pointcloud/pcd_compressed**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes compressed binary point data* in PCD format to a `.pcd` file.                               |
+| **pointcloud/pcd_ascii**       | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes ASCII point data* in PCD format to a `.pcd` file.                                          |
+
+***Note:** Point data in PCD files is written with all fields, that are present in the `PointCloud2` message. Some programs do not support arbitrary fields in PCD files. If you need to export only specific fields, you can use the `remove_fields` processor to drop unwanted fields before exporting. See the [Processors](#processors) section for more information.*
 
 In addition to these specialized routines, there are also generic routines for exporting any message type to common formats. These are available as `@single_file` and `@multi_file` variants, which determine whether all messages are written to a single file or each message is written to its own file:
 
@@ -288,6 +292,16 @@ You’ll be prompted to pick which routine to uninstall.
 ## Processors
 
 Processors are used to modify messages before they are exported. They can be applied to specific topics and allow you to perform operations such as filtering, transforming, or enriching the data.
+
+The following processors are available by default:
+| Identifier(s)          | Topic(s)                                                            |    Arguments                                                   | Description                                |
+| ---------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
+| **field_mapping**      | `sensor_msgs/msg/PointCloud2`                                       | `field_mapping` String in the form `old_field:new_field, ...`  | Remaps fields in a PointCloud2 message.    |
+| **remove_fields**      | `sensor_msgs/msg/PointCloud2`                                       | `fields_to_remove` List of field names to remove `field1, ...` | Removes specified fields from PointCloud2. |
+| **transform_from_yaml**| `sensor_msgs/msg/PointCloud2`                                       | `custom_frame_path` Path to a YAML file with custom frame data | Transforms PointCloud2 to a custom frame.  |
+| **apply_color_map**    | `sensor_msgs/msg/Image` <br> `sensor_msgs/msg/CompressedImage`      | `color_map` Integer specifying cv2 colormap index*.            | Applies a color map to an image.           |
+
+*Note: The `color_map` argument is an integer that specifies the OpenCV colormap index. You can find a list of available colormaps in the [OpenCV documentation](https://docs.opencv.org/4.x/d3/d50/group__imgproc__colormap.html).*
 
 ### Custom Processors
 
