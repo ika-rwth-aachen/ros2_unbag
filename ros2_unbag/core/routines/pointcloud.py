@@ -21,10 +21,14 @@
 # SOFTWARE.
 
 import struct
+import numpy as np
 from pathlib import Path
 import pickle
 
+from pypcd4 import Encoding
+
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
+from ros2_unbag.core.utils.pointcloud_utils import convert_pointcloud2_to_pypcd
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"], mode=ExportMode.MULTI_FILE)
@@ -65,7 +69,7 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
             f.write(f"{x} {y} {z}\n")
 
 
-@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd"], mode=ExportMode.MULTI_FILE)
+@ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd", "pointcloud/pcd_compressed", "pointcloud/pcd_ascii"], mode=ExportMode.MULTI_FILE)
 def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export PointCloud2 message as a binary PCD v0.7 file.
@@ -80,44 +84,15 @@ def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
     Returns:
         None
     """
-    # Map ROS2 field data types to struct format and PCD types
-    type_map = {
-        1: ('B', 'U', 1),
-        2: ('H', 'U', 2),
-        3: ('I', 'U', 4),
-        4: ('b', 'I', 1),
-        5: ('h', 'I', 2),
-        6: ('i', 'I', 4),
-        7: ('f', 'F', 4)
-    }
 
-    fields = msg.fields
-    num_points = len(msg.data) // msg.point_step
+    # Build point cloud
+    pc = convert_pointcloud2_to_pypcd(msg)
 
-    # Extract PCD metadata
-    names = [f.name for f in fields]
-    fmts = [type_map[f.datatype][0] for f in fields]
-    types = [type_map[f.datatype][1] for f in fields]
-    sizes = [type_map[f.datatype][2] for f in fields]
-    counts = [f.count for f in fields]
-    offsets = [f.offset for f in fields]
 
-    # Build PCD header
-    header = [
-        "# .PCD v0.7 - Point Cloud Data file format", "VERSION 0.7",
-        f"FIELDS {' '.join(names)}", f"SIZE {' '.join(map(str, sizes))}",
-        f"TYPE {' '.join(types)}", f"COUNT {' '.join(map(str, counts))}",
-        f"WIDTH {msg.width}", f"HEIGHT {msg.height}", "VIEWPOINT 0 0 0 1 0 0 0",
-        f"POINTS {num_points}", "DATA binary"
-    ]
-
-    with open(path.with_suffix(".pcd"), "wb") as f:
-        # Write header to file
-        for line in header:
-            f.write((line + "\n").encode("ascii"))
-
-        # Write point data
-        for i in range(0, len(msg.data), msg.point_step):
-            for fmt, off in zip(fmts, offsets):
-                val = struct.unpack_from(fmt, msg.data, offset=i + off)[0]
-                f.write(struct.pack(fmt, val))
+    # Save the point cloud to a PCD file
+    if fmt == "pointcloud/pcd":
+        pc.save(path.with_suffix(".pcd"), encoding=Encoding.BINARY)
+    elif fmt == "pointcloud/pcd_compressed":
+        pc.save(path.with_suffix(".pcd"), encoding=Encoding.BINARY_COMPRESSED)
+    elif fmt == "pointcloud/pcd_ascii":
+        pc.save(path.with_suffix(".pcd"), encoding=Encoding.ASCII)

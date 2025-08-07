@@ -2,61 +2,67 @@
 
 This project includes the following third-party dependencies. Each is used unmodified and distributed via the Python Package Index (PyPI). The original licenses apply.
 
----
+---------------------------------------------------------------
 
-**1. NumPy**
+1. NumPy
 - License: BSD 3-Clause License
 - Source: https://pypi.org/project/numpy/
 
----
+---------------------------------------------------------------
 
-**2. OpenCV (opencv-python-headless)**
+2. OpenCV (opencv-python-headless)
 - License: Apache License 2.0
 - Source: https://pypi.org/project/opencv-python-headless/
 
----
+---------------------------------------------------------------
 
-**3. PyYAML**
+3. PyYAML
 - License: MIT License
 - Source: https://pypi.org/project/PyYAML/
 
----
+---------------------------------------------------------------
 
-**4. PySide6**
+4. pypcd4
+- License: BSD 3-Clause License
+- Source: https://pypi.org/project/pypcd4/
+
+---------------------------------------------------------------
+
+5. PySide6
 - License: GNU Lesser General Public License v3.0 (LGPL-3.0)
 - Source: https://pypi.org/project/PySide6/
 - Note: PySide6 is used as a dynamic dependency and has not been modified.
 
----
+---------------------------------------------------------------
 
-**5. rclpy**
+6. rclpy
 - License: Apache License 2.0
 - Source: https://github.com/ros2/rclpy
 
----
+---------------------------------------------------------------
 
-**6. rosbag2_py**
+7. rosbag2_py
 - License: Apache License 2.0
 - Source: https://github.com/ros2/rosbag2
 
----
+---------------------------------------------------------------
 
-**7. ros2cli**
+8. ros2cli
 - License: Apache License 2.0
 - Source: https://github.com/ros2/ros2cli
 
----
+---------------------------------------------------------------
 
-**8. rosidl-runtime-py**
+9. rosidl-runtime-py
 - License: Apache License 2.0
 - Source: https://github.com/ros2/rosidl_python
 
----
+---------------------------------------------------------------
 
-**9. tqdm**
+10. tqdm
 - License: Apache License 2.0
 - Source: https://pypi.org/project/tqdm/
 
----
+---------------------------------------------------------------
 
 This file is provided for informational purposes and to assist in license compliance.

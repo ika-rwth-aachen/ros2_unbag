@@ -8,13 +8,34 @@ local_scheme = "no-local-version"
 
 [project]
 name = "ros2_unbag"
-dynamic = [
-  "version",
-  "description",
-  "readme",
-  "license",
-  "authors",
-  "maintainers",
-  "dependencies",
-  "entry-points"
+description = "A ROS 2 tool for exporting bags to human readable files. Supports pluggable export routines to handle any message type."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [{ name = "Lukas Ostendorf", email = "lukas.ostendorf@ika.rwth-aachen.de" }]
+maintainers = [{ name = "Lukas Ostendorf", email = "lukas.ostendorf@ika.rwth-aachen.de" }]
+urls = { homepage = "https://github.com/ika-rwth-aachen/ros2_unbag" }
+keywords = ["ros2", "rosbag", "robotics", "perception", "ros2-export"]
+dynamic = ["version"]
+
+dependencies = [
+    "numpy==1.26.4",
+    "opencv-python-headless==4.11.0.86",
+    "pypcd4==1.3.0",
+    "PySide6==6.9.1",
+    "pyyaml==6.0.2",
+    "tqdm==4.67.1"
 ]
+
+[project.entry-points."ros2cli.command"]
+unbag = "ros2_unbag.export:ExportCommand"
+
+[project.entry-points."ros2cli.extension_point"]
+ros2_unbag = "ros2cli.command:CommandExtension"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ros2_unbag*"]
+
+[tool.setuptools.package-data]
+"ros2_unbag.ui" = ["assets/loading.gif", "assets/title.png"]

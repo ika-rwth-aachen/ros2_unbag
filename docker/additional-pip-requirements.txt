@@ -1,5 +1,6 @@
-pyyaml==6.0.2
 numpy==1.26.4
 opencv-python-headless==4.11.0.86
+pypcd4==1.3.0
 PySide6==6.9.1
+pyyaml==6.0.2
 tqdm==4.67.1

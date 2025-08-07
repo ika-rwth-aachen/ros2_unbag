@@ -27,11 +27,83 @@ import numpy as np
 import yaml
 
 from ros2_unbag.core.processors.base import Processor
+from ros2_unbag.core.utils.pointcloud_utils import convert_pointcloud2_to_pypcd
 from sensor_msgs.msg import PointCloud2
 
 
+@Processor("sensor_msgs/msg/PointCloud2", ["field_mapping"])
+def pointcloud_apply_field_mapping(msg, field_mapping: str):
+    """
+    Apply a field mapping to a PointCloud2 message.
+
+    Args:
+        msg: PointCloud2 message instance.
+        field_mapping: "field_name: new_field_name, field_name2: new_field_name2, ..."
+
+    Returns:
+        PointCloud2: Modified PointCloud2 message with remapped fields.
+
+    Raises:
+        ValueError: If field_mapping is invalid or fields do not exist in the message.
+    """
+    if not field_mapping:
+        return msg
+
+    existing_field_names = {field.name for field in msg.fields}
+    mapping = {}
+
+    for pair in field_mapping.split(","):
+        if ":" not in pair:
+            raise ValueError(f"Invalid mapping format: '{pair}' (expected 'old:new, ...')")
+        old_field, new_field = map(str.strip, pair.split(":"))
+
+        if old_field not in existing_field_names:
+            raise ValueError(f"Field '{old_field}' does not exist in PointCloud2 message.")
+        if not new_field or not new_field.isidentifier():
+            raise ValueError(f"Invalid new field name: '{new_field}'")
+
+        mapping[old_field] = new_field
+
+    for field in msg.fields:
+        if field.name in mapping:
+            field.name = mapping[field.name]
+
+    return msg
+
+
+@Processor("sensor_msgs/msg/PointCloud2", ["remove_fields"])
+def pointcloud_remove_fields(msg, fields_to_remove: str):
+    """
+    Remove specified fields from a PointCloud2 message.
+
+    Args:
+        msg: PointCloud2 message instance.
+        fields_to_remove: "field_name, field_name2, ..."
+
+    Returns:
+        PointCloud2: Modified PointCloud2 message with specified fields removed.
+    """
+
+    # TODO: Implement a more efficient way to remove fields
+    if not fields_to_remove:
+        return msg
+    
+    # Convert pointcloud2 message to pypcd PointCloud object
+    pc = convert_pointcloud2_to_pypcd(msg)
+
+    # Filter out fields to remove
+    fields_to_remove = set(fields_to_remove.split(","))
+    fields_to_keep = [f for f in pc.fields if f not in fields_to_remove]
+    pc_filtered = pc[fields_to_keep]
+
+    # Convert back to PointCloud2 message
+    msg = pc_filtered.to_msg(msg.header)
+
+    return msg
+
+
 @Processor("sensor_msgs/msg/PointCloud2", ["transform_from_yaml"])
-def apply_transform_from_yaml(msg, custom_frame_path: str):
+def pointcloud_apply_transform_from_yaml(msg, custom_frame_path: str):
     """
     Apply a rigid-body transform from a YAML file to all points in a PointCloud2 message.
 
