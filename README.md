@@ -208,17 +208,17 @@ When using ros2 unbag, you can define your export settings in a JSON configurati
 
 Export routines define the way how messages are exported from the ros2 bag file to the desired output format. The tool comes with a set of predefined routines for **all** message types and formats, such as:
 
-| Identifier(s)       | Topic(s)                                                      | Description                                                                                                                      |
-| ------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **image/png**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                       |  
-| **image/jpeg**                 | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                      |
-| **video/mp4**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to MP4.                                                       |
-| **video/avi**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to AVI.                                                       |
-| **pointcloud/pkl**             | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                         |
-| **pointcloud/xyz**             | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file.  |
-| **pointcloud/pcd**             | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data* in PCD format to a `.pcd` file.                                          |
-| **pointcloud/pcd_compressed**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes compressed binary point data* in PCD format to a `.pcd` file.                               |
-| **pointcloud/pcd_ascii**       | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes ASCII point data* in PCD format to a `.pcd` file.                                          |
+| Identifier(s)       | Topic(s)                                                      | Description                                                                                                                                |
+| ------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **image/png**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to PNG.                                                                                               |  
+| **image/jpeg**                 | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports images via openCV to JPEG.                                                                                              |
+| **video/mp4**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to MP4.                                                                                      |
+| **video/avi**                  | `sensor_msgs/msg/Image`<br> `sensor_msgs/msg/CompressedImage` | Exports image sequences via openCV to AVI.                                                                                      |
+| **pointcloud/pkl**             | `sensor_msgs/msg/PointCloud2`                                 | Serializes the entire `PointCloud2` message object using Python’s `pickle`, producing a `.pkl` file.                            |
+| **pointcloud/xyz**             | `sensor_msgs/msg/PointCloud2`                                 | Unpacks each point’s x, y, z floats from the binary buffer and writes one `x y z` line per point into a plain `.xyz` text file. |
+| **pointcloud/pcd**             | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes binary point data* in PCD format to a `.pcd` file.                                        |
+| **pointcloud/pcd_compressed**  | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes compressed binary point data* in PCD format to a `.pcd` file.                             |
+| **pointcloud/pcd_ascii**       | `sensor_msgs/msg/PointCloud2`                                 | Constructs a PCD v0.7 file and writes ASCII point data* in PCD format to a `.pcd` file.                                         |
 
 ***Note:** Point data in PCD files is written with all fields, that are present in the `PointCloud2` message. Some programs do not support arbitrary fields in PCD files. If you need to export only specific fields, you can use the `remove_fields` processor to drop unwanted fields before exporting. See the [Processors](#processors) section for more information.*
 
