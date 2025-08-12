@@ -93,6 +93,9 @@ class Exporter:
 
             # Export handler
             self.topic_handlers[topic] = ExportRoutine.get_handler(topic_type, fmt)
+            
+            if self.topic_handlers[topic] is None:
+                raise ValueError(f"No export handler found for topic '{topic}' with format '{fmt}'")
 
             # Optional processor
             if 'processor' in cfg:

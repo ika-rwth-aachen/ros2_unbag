@@ -32,7 +32,7 @@ from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetad
 from ros2_unbag.core.utils.file_utils import get_time_from_msg
 
 
-@ExportRoutine.set_catch_all(["text/yaml@multi_file", "text/json@multi_file", "table/csv@multi_file"], mode=ExportMode.MULTI_FILE)
+@ExportRoutine.set_catch_all(["text/json@multi_file", "text/yaml@multi_file", "table/csv@multi_file"], mode=ExportMode.MULTI_FILE)
 def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Generic export handler supporting JSON, YAML, and CSV formats. 
@@ -65,7 +65,7 @@ def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadat
         write_line(f, serialized_line if fmt != "table/csv@multi_file" else [header, values], fmt, True, True)
 
 
-@ExportRoutine.set_catch_all(["text/yaml@single_file", "text/json@single_file", "table/csv@single_file"], mode=ExportMode.SINGLE_FILE)
+@ExportRoutine.set_catch_all(["text/json@single_file", "text/yaml@single_file", "table/csv@single_file"], mode=ExportMode.SINGLE_FILE)
 def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Generic export handler supporting JSON, YAML, and CSV formats.
