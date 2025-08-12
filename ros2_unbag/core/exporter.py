@@ -131,6 +131,10 @@ class Exporter:
             self.message_count.get(key, 0) for key in self.config)
         self.bag_reader.set_filter(self.config.keys())
 
+        # Max index for each topic
+        self.max_index = {key: count - 1 for key, count in self.message_count.items()}
+        self.index_length = {key: max(1, len(str(count - 1))) for key, count in self.message_count.items()}
+
         # Queues for exceptions and progress
         self.exception_queue = mp.Queue()
         progress_queue = mp.Queue()
@@ -499,7 +503,8 @@ class Exporter:
         # Apply naming pattern
         replacements = {
             "%name": topic_base,
-            "%index": str(index)
+            "%index": str(index).zfill(self.index_length[topic]),
+            "%timestamp": str(get_time_from_msg(msg, return_datetime=False)),
         }
 
         for key, value in replacements.items():
@@ -532,7 +537,7 @@ class Exporter:
                              f"and format '{fmt}'. This will overwrite the previous file: {full_path}")
         
         # Create metadata for the export
-        metadata = ExportMetadata(index=index, max_index=self.message_count[topic]-1)
+        metadata = ExportMetadata(index=index, max_index=self.max_index[topic])
 
         task = (topic, msg, full_path, fmt, metadata)
         if sequential:
