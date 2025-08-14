@@ -21,7 +21,6 @@
 # SOFTWARE.
 
 from collections import defaultdict, deque
-from datetime import datetime
 import logging
 import multiprocessing as mp
 from pathlib import Path
@@ -29,7 +28,7 @@ import threading
 
 from ros2_unbag.core.processors.base import Processor
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
-from ros2_unbag.core.utils.file_utils import get_time_from_msg
+from ros2_unbag.core.utils.file_utils import get_time_from_msg, substitute_placeholders, is_strftime_in_template
 
 
 class Exporter:
@@ -64,9 +63,10 @@ class Exporter:
                 raise ValueError(f"Topic '{topic}' not found in bag. Available topics: {list(self.topic_types.keys())}")
 
         self.index_map = {t: 0 for t in self.config}
-        self.sequential_topics = [t for t, c in self.config.items()
-            if ExportRoutine.get_mode(self.topic_types[t], c['format']) == ExportMode.SINGLE_FILE
-        ]
+        self.export_mode = {t: ExportRoutine.get_mode(self.topic_types[t], self.config[t]['format'])
+                            for t in self.config}
+        self.sequential_topics = [t for t, m in self.export_mode.items() if m == ExportMode.SINGLE_FILE]
+
 
         # one queue for parallel topics
         self.parallel_q = mp.Queue()
@@ -79,7 +79,6 @@ class Exporter:
         self.logger.info(f"Using {self.num_workers} workers for export, "
               f"{self.num_parallel_workers} for parallel topics, "
               f"{len(self.sequential_topics)} for sequential topics.")
-        self.queue_maxsize = self.num_workers * 2
         self._enqueued_files = set()
 
         # Pre-fetch export handlers and processors
@@ -93,6 +92,9 @@ class Exporter:
 
             # Export handler
             self.topic_handlers[topic] = ExportRoutine.get_handler(topic_type, fmt)
+            
+            if self.topic_handlers[topic] is None:
+                raise ValueError(f"No export handler found for topic '{topic}' with format '{fmt}'")
 
             # Optional processor
             if 'processor' in cfg:
@@ -109,6 +111,40 @@ class Exporter:
             else:
                 self.topic_processors[topic] = None
 
+            # Prepare naming and path
+            name_tmpl = cfg['naming']
+            path_tmpl = cfg['path']
+            sub_tmpl  = cfg.get('subfolder', '').strip('/')
+
+            uses_index_or_ts = any(x in s for s in (name_tmpl, path_tmpl, sub_tmpl)
+                                for x in ("%index", "%timestamp"))
+            has_strftime_name = is_strftime_in_template(name_tmpl)
+            has_strftime_path = (is_strftime_in_template(path_tmpl) or is_strftime_in_template(sub_tmpl))
+
+            # Check for conflicting templates
+            if self.export_mode[topic] == ExportMode.SINGLE_FILE and (uses_index_or_ts or has_strftime_name or has_strftime_path):
+                raise ValueError(
+                    f"SINGLE_FILE mode for '{topic}' forbids %index/%timestamp and strftime in naming/path/subfolder."
+                )
+            if self.export_mode[topic] == ExportMode.MULTI_FILE and not uses_index_or_ts:
+                raise ValueError(
+                    f"MULTI_FILE mode for '{topic}' requires %index/%timestamp in naming/path/subfolder."
+                )
+
+            # Cache per-topic data
+            if not hasattr(self, "_topic_cache"):
+                self._topic_cache = {}
+            self._topic_cache[topic] = {
+                "fmt": fmt,
+                "mode": self.export_mode[topic],
+                "sequential": (self.export_mode[topic] == ExportMode.SINGLE_FILE),
+                "topic_base": topic.strip("/").replace("/", "_"),
+                "name_tmpl": name_tmpl,
+                "path_tmpl": path_tmpl,
+                "sub_tmpl":  sub_tmpl,
+                "has_strftime_name": has_strftime_name,
+                "has_strftime_path": has_strftime_path,
+            }
 
     def run(self):
         """
@@ -130,6 +166,10 @@ class Exporter:
         self.max_progress_count = sum(
             self.message_count.get(key, 0) for key in self.config)
         self.bag_reader.set_filter(self.config.keys())
+
+        # Max index for each topic
+        self.max_index = {key: count - 1 for key, count in self.message_count.items()}
+        self.index_length = {key: max(1, len(str(count - 1))) for key, count in self.message_count.items()}
 
         # Queues for exceptions and progress
         self.exception_queue = mp.Queue()
@@ -466,7 +506,7 @@ class Exporter:
         """
         if not dropped_frames:
             return
-        self.logger.info("The syncronization process dropped frames caused by the discard eps.\n"
+        self.logger.info("The synchronization process dropped frames caused by the discard eps.\n"
         "The following topics were not available at frame generation time:")
         for topic, count in dropped_frames.items():
             self.logger.info(f"  {topic}: {count} times")
@@ -483,59 +523,55 @@ class Exporter:
         Returns:
             None
         """
-        cfg = self.config.get(topic)
-        if not cfg:
-            return
+        # Fetch per-topic cache
+        cache = self._topic_cache[topic]
 
-        fmt = cfg['format']
-        path = cfg['path']
-        subfolder = cfg.get('subfolder', "").strip("/")
-        naming = cfg['naming']
+        # Handle indexing
         index = self.index_map[topic]
         self.index_map[topic] += 1
 
-        topic_base = topic.strip("/").replace("/", "_")
-        
         # Apply naming pattern
+        idx_len = self.index_length[topic]
+        ts_float = get_time_from_msg(msg, return_datetime=False)
         replacements = {
-            "%name": topic_base,
-            "%index": str(index)
+            "name": cache["topic_base"],
+            "index": str(index).zfill(idx_len),
+            "timestamp": str(ts_float),
         }
 
-        for key, value in replacements.items():
-            naming = naming.replace(key, value)
-            path = path.replace(key, value)
-            subfolder = subfolder.replace(key, value)
+        naming = substitute_placeholders(cache["name_tmpl"], replacements)
+        path = substitute_placeholders(cache["path_tmpl"], replacements)
+        subfolder = substitute_placeholders(cache["sub_tmpl"], replacements)
 
-        # Check if the naming still contains a placeholder
-        if "%" in naming:
-            # Build timestamp for filename
+        # Strftime only applies if the naming contains strftime directives
+        if cache["has_strftime_name"]:
             timestamp = get_time_from_msg(msg, return_datetime=True)
             filename = timestamp.strftime(naming)
         else:
             filename = naming
 
         path = Path(path) / subfolder
-        path.mkdir(parents=True, exist_ok=True)
         full_path = path / filename
 
         # Determine if this is the first time this file is being enqueued
         is_first = full_path not in self._enqueued_files
+
+        # Abort if the file name does not change in MULTI_FILE mode
+        if cache["mode"] == ExportMode.MULTI_FILE and not is_first:
+            raise ValueError(f"Cannot use a non-changing file name for topic '{topic}' "
+                             f"and format '{cache['fmt']}'. This will overwrite the previous file: {full_path}")
+
+        # Create the directory if it does not exist
+        path.mkdir(parents=True, exist_ok=True)
+
+        # Enqueue the export task
         self._enqueued_files.add(full_path)
 
-        # Warn the user if the export routine is single-file and the file already exists
-        topic_type = self.topic_types[topic]
-        export_mode = ExportRoutine.get_mode(topic_type, fmt)
-        sequential = topic in self.sequential_topics
-        if export_mode == ExportMode.MULTI_FILE and not is_first:
-            raise ValueError(f"Cannot use a non-changing file name for topic '{topic}' "
-                             f"and format '{fmt}'. This will overwrite the previous file: {full_path}")
-        
         # Create metadata for the export
-        metadata = ExportMetadata(index=index, max_index=self.message_count[topic]-1)
+        metadata = ExportMetadata(index=index, max_index=self.max_index[topic])
 
-        task = (topic, msg, full_path, fmt, metadata)
-        if sequential:
+        task = (topic, msg, full_path, cache["fmt"], metadata)
+        if cache["sequential"]:
             self.seq_queues[topic].put(task)
         else:
             self.parallel_q.put(task)

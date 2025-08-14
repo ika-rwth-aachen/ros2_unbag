@@ -38,6 +38,7 @@ from ros2_unbag.ui.main_window import UnbagApp
 
 
 class ExportCommand(CommandExtension):
+
     def add_arguments(self, parser, cli_name):
         """
         Add command-line arguments for the export command.
@@ -91,6 +92,7 @@ class ExportCommand(CommandExtension):
             "--use-processor", type=str, default=None,
             help="Use a processor without installing it. See documentation for details.")
 
+
     def main(self, parser, args):
         """
         Main entry point for the export command. Handles installation, uninstallation, GUI, and CLI modes.
@@ -128,6 +130,7 @@ class ExportCommand(CommandExtension):
         else:
             return self._run_cli(args)
 
+
     def _run_gui(self):
         """
         Launch the GUI application for exporting ROS2 bag data.
@@ -148,6 +151,7 @@ class ExportCommand(CommandExtension):
         window = UnbagApp()
         window.show()
         return app.exec()
+
 
     def _run_cli(self, args):
         """
@@ -177,6 +181,7 @@ class ExportCommand(CommandExtension):
         print("Export complete.")
         return 0
 
+
     def progress(self, current, total):
         """
         Update the progress bar with the current progress.
@@ -190,11 +195,13 @@ class ExportCommand(CommandExtension):
         """
         if not hasattr(self, "_pbar"):
             self._pbar = tqdm(total=total)
-        self._pbar.n = current
-        self._pbar.refresh()
-        if current == total:
+        delta = current - self._pbar.n
+        if delta > 0:
+            self._pbar.update(delta)
+        if current >= total:
             self._pbar.close()
             del self._pbar
+
 
     def _validate_and_build_config(self, args, bag_reader):
         """
@@ -267,6 +274,7 @@ class ExportCommand(CommandExtension):
 
         return config
     
+
     def install_routine(self, path):
         """
         Install a custom routine from the specified Python file.
@@ -279,13 +287,13 @@ class ExportCommand(CommandExtension):
         """
         # Determine destination directory
         routines_dir = os.path.dirname(ros2_unbag.core.routines.__file__)
-        dest = os.path.join(routines_dir, os.path.basename(path))
 
-        import_successfull = self.import_file(path, routines_dir)
-        if not import_successfull:
+        import_successful = self.import_file(path, routines_dir)
+        if not import_successful:
             sys.exit(f"Error importing routine from {path}")
         else:
             print(f"Imported routine from {path}")
+
 
     def install_processor(self, path):
         """
@@ -299,13 +307,13 @@ class ExportCommand(CommandExtension):
         """
         # Determine destination directory
         processors_dir = os.path.dirname(ros2_unbag.core.processors.__file__)
-        dest = os.path.join(processors_dir, os.path.basename(path))
 
-        import_successfull = self.import_file(path, processors_dir)
-        if not import_successfull:
+        import_successful = self.import_file(path, processors_dir)
+        if not import_successful:
             sys.exit(f"Error importing processor from {path}")
         else:
             print(f"Imported processor from {path}")
+
 
     def import_file(self, path, dest_dir):
         """
@@ -334,6 +342,7 @@ class ExportCommand(CommandExtension):
         
         return True
     
+
     def uninstall_interactive(self, routine=True):
         """
         Interactively uninstall a routine or processor.
@@ -344,17 +353,16 @@ class ExportCommand(CommandExtension):
         Returns:
             None
         """
-        if routine:
-            dir = os.path.dirname(ros2_unbag.core.routines.__file__)
-        else:
-            dir = os.path.dirname(ros2_unbag.core.processors.__file__)
-        files = [f for f in os.listdir(dir) if f.endswith(".py") and f != "__init__.py" and f != "base.py" and f != "default.py"]
+        base_dir = os.path.dirname(
+            ros2_unbag.core.routines.__file__ if routine else ros2_unbag.core.processors.__file__
+        )
+        files = [f for f in os.listdir(base_dir) if f.endswith(".py") and f != "__init__.py" and f != "base.py" and f != "default.py"]
 
+        label = "routines" if routine else "processors"
         if not files:
-            print("No routines to uninstall.")
+            print(f"No {label} to uninstall.")
             return
-
-        print("Available routines:")
+        print(f"Available {label}:")
         for i, f in enumerate(files, 1):
             print(f"{i}. {f}")
 
@@ -365,12 +373,16 @@ class ExportCommand(CommandExtension):
 
         try:
             idx = int(choice) - 1
+            if idx < 0 or idx >= len(files):
+                print("Invalid selection.")
+                return
             selected_file = files[idx]
-            os.remove(os.path.join(dir, selected_file))
-            print(f"Uninstalled routine '{selected_file}'")
+            os.remove(os.path.join(base_dir, selected_file))
+            print(f"Uninstalled {label[:-1]} '{selected_file}'")
         except (IndexError, ValueError):
             print("Invalid selection.")
     
+
     def use_routine_or_processor(self, path):
         """
         Dynamically import and use a routine or processor from the specified Python file.

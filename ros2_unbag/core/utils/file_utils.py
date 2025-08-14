@@ -1,5 +1,6 @@
 from datetime import datetime
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ def get_time_from_msg(msg, return_datetime=True):
         msg: ROS2 message instance.
 
     Returns:
-        datetime: The extracted timestamp as a datetime object.
+        datetime: The extracted timestamp as a datetime object or an integer timestamp.
     """
     try:
         sec = msg.header.stamp.sec
@@ -25,4 +26,35 @@ def get_time_from_msg(msg, return_datetime=True):
             logger.warning("Message has no valid timestamp; falling back to datetime.now() - This may lead to incorrect behavior.")
             return datetime.now() if return_datetime else datetime.now().timestamp()
 
-    return datetime.fromtimestamp(sec + nanosec * 1e-9) if return_datetime else sec + nanosec * 1e-9
+    return datetime.fromtimestamp(sec + nanosec * 1e-9) if return_datetime else int(sec * 1e9 + nanosec)
+
+
+_PLACEHOLDER_RE = re.compile(r"%(name|index|timestamp)")
+def substitute_placeholders(template_string: str, replacements: dict) -> str:
+    """
+    Replace %name, %index, %timestamp in a template string.
+
+    Args:
+        template_string (str): The string containing placeholders.
+        replacements (dict): A dictionary with keys 'name', 'index', and 'timestamp'
+                             and their corresponding replacement values.
+    
+    Returns:
+        str: The string with placeholders replaced by their corresponding values.
+    """
+    if not template_string or "%" not in template_string:
+        return template_string
+    return _PLACEHOLDER_RE.sub(lambda m: replacements[m.group(1)], template_string)
+
+_STRFTIME_RE = re.compile(r"%(?!name|index|timestamp)[A-Za-z]")
+def is_strftime_in_template(template_string: str) -> bool:
+    """
+    Check if the template string contains strftime format specifiers.
+
+    Args:
+        template_string (str): The string to check for strftime specifiers.
+
+    Returns:
+        bool: True if the string contains strftime specifiers, False otherwise.
+    """
+    return bool(_STRFTIME_RE.search(template_string))
