@@ -79,7 +79,6 @@ class Exporter:
         self.logger.info(f"Using {self.num_workers} workers for export, "
               f"{self.num_parallel_workers} for parallel topics, "
               f"{len(self.sequential_topics)} for sequential topics.")
-        self.queue_maxsize = self.num_workers * 2
         self._enqueued_files = set()
 
         # Pre-fetch export handlers and processors
