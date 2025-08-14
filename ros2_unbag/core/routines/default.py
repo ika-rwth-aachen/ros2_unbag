@@ -21,8 +21,6 @@
 # SOFTWARE.
 
 import csv
-from datetime import datetime
-import fcntl
 import json
 from pathlib import Path
 
@@ -50,19 +48,19 @@ def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadat
     timestamp = get_time_from_msg(msg, return_datetime=True)
 
     if fmt == "text/json@multi_file":
-        serialized_line = serialize_message_with_timestamp(msg, "json", timestamp)
+        serialized_line = _serialize_message_with_timestamp(msg, "json", timestamp)
         file_ending = ".json"
     elif fmt == "text/yaml@multi_file":
-        serialized_line = serialize_message_with_timestamp(msg, "yaml", timestamp)
+        serialized_line = _serialize_message_with_timestamp(msg, "yaml", timestamp)
         file_ending = ".yaml"
     elif fmt == "table/csv@multi_file":
-        header, values = serialize_message_with_timestamp(msg, "csv", timestamp)
+        header, values = _serialize_message_with_timestamp(msg, "csv", timestamp)
         file_ending = ".csv"
 
     # Save the serialized message to a file
     with open(path.with_suffix(file_ending), "w") as f:
         # Write the serialized line to the file
-        write_line(f, serialized_line if fmt != "table/csv@multi_file" else [header, values], fmt, True, True)
+        _write_line(f, serialized_line if fmt != "table/csv@multi_file" else [header, values], fmt, True, True)
 
 
 @ExportRoutine.set_catch_all(["text/json@single_file", "text/yaml@single_file", "table/csv@single_file"], mode=ExportMode.SINGLE_FILE)
@@ -83,13 +81,13 @@ def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetada
     timestamp = get_time_from_msg(msg, return_datetime=True)
 
     if fmt == "text/json@single_file":
-        serialized_line = serialize_message_with_timestamp(msg, "json", timestamp)
+        serialized_line = _serialize_message_with_timestamp(msg, "json", timestamp)
         file_ending = ".json"
     elif fmt == "text/yaml@single_file":
-        serialized_line = serialize_message_with_timestamp(msg, "yaml", timestamp)
+        serialized_line = _serialize_message_with_timestamp(msg, "yaml", timestamp)
         file_ending = ".yaml"
     elif fmt == "table/csv@single_file":
-        header, values = serialize_message_with_timestamp(msg, "csv", timestamp)
+        header, values = _serialize_message_with_timestamp(msg, "csv", timestamp)
         file_ending = ".csv"
 
     # Determine if this is the first or last message for the file
@@ -98,22 +96,15 @@ def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetada
 
     # Save the serialized message to a file - if the filename is constant, messages will be appended
     with open(path.with_suffix(file_ending), "a+") as f:
-        while True:
-            try:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                if metadata.index == 0:
-                    # clear the file if this is the first message
-                    f.seek(0)
-                    f.truncate()
-                # Write the serialized line to the file
-                write_line(f, serialized_line if fmt != "table/csv@single_file" else [header, values], fmt, is_first, is_last)
-                fcntl.flock(f, fcntl.LOCK_UN)
-                break
-            except BlockingIOError:
-                continue    #retry if the file is locked by another process
+        if metadata.index == 0:
+            # clear the file if this is the first message
+            f.seek(0)
+            f.truncate()
+        # Write the serialized line to the file
+        _write_line(f, serialized_line if fmt != "table/csv@single_file" else [header, values], fmt, is_first, is_last)
 
 
-def serialize_message_with_timestamp(msg, fmt, timestamp):
+def _serialize_message_with_timestamp(msg, fmt, timestamp):
     """
     Serialize a ROS message to the specified format.
 
@@ -136,13 +127,13 @@ def serialize_message_with_timestamp(msg, fmt, timestamp):
         serialized_line_with_timestamp = f"{timestamp}:\n{indented_yaml_content}"
         return serialized_line_with_timestamp
     elif fmt == "csv":
-        flat_data = flatten(message_to_ordereddict(msg))
+        flat_data = _flatten(message_to_ordereddict(msg))
         header = ["timestamp", *flat_data.keys()]
         values = [str(timestamp), *flat_data.values()]
         return [header, values]
 
 
-def write_line(file, line, filetype, is_first, is_last):
+def _write_line(file, line, filetype, is_first, is_last):
     """
     Write a serialized message line to the file.
     For JSON/YAML, write the string; for CSV, ensure header and write the row.
@@ -176,14 +167,14 @@ def write_line(file, line, filetype, is_first, is_last):
     # Writing for csv - include header only for the first line
     if "table/csv" in filetype:
         if is_first:
-            add_csv_header(file, line[0])
+            _add_csv_header(file, line[0])
         writer = csv.writer(file)
         writer.writerow(line[1])   
 
     file.flush()
 
 
-def add_csv_header(file, header):
+def _add_csv_header(file, header):
     """
     Ensure the CSV file starts with the correct header.
 
@@ -200,7 +191,7 @@ def add_csv_header(file, header):
     writer.writerow(header)
 
 
-def flatten(d, parent_key='', sep='.'):
+def _flatten(d, parent_key='', sep='.'):
     """
     Flatten a nested dict into a single-level dict with compound keys separated by sep.
 
@@ -216,7 +207,7 @@ def flatten(d, parent_key='', sep='.'):
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.extend(flatten(v, new_key, sep=sep).items())
+            items.extend(_flatten(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
     return dict(items)

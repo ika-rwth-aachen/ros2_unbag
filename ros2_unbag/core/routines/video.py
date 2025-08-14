@@ -28,7 +28,7 @@ from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetad
 from ros2_unbag.core.utils.image_utils import convert_image
 
 @ExportRoutine("sensor_msgs/msg/CompressedImage", ["video/mp4", "video/avi"], mode=ExportMode.SINGLE_FILE)
-def export_compressed_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
+def export_compressed_video(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export a sequence of compressed image ROS messages to a video file using OpenCV.
 
@@ -61,7 +61,7 @@ def export_compressed_image(msg, path: Path, fmt: str, metadata: ExportMetadata)
     if len(img.shape) == 2 or img.shape[2] == 1:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    ps = export_video_image.persistent_storage
+    ps = export_compressed_video.persistent_storage
 
     image_size = img.shape[:2]
 
@@ -89,7 +89,7 @@ def export_compressed_image(msg, path: Path, fmt: str, metadata: ExportMetadata)
 
 
 @ExportRoutine("sensor_msgs/msg/Image", ["video/mp4", "video/avi"], mode=ExportMode.SINGLE_FILE)
-def export_video_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
+def export_video(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
     Export a sequence of raw Image ROS messages to a video file using OpenCV.
 
@@ -121,7 +121,7 @@ def export_video_image(msg, path: Path, fmt: str, metadata: ExportMetadata):
     if len(img.shape) == 2 or img.shape[2] == 1:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    ps = export_video_image.persistent_storage
+    ps = export_video.persistent_storage
 
     image_size = img.shape[:2]
 
