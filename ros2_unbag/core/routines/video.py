@@ -26,6 +26,8 @@ from pathlib import Path
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 from ros2_unbag.core.utils.image_utils import convert_image
+from ros2_unbag.core.utils.file_utils import get_time_from_msg
+from ros2_unbag.core.utils.video_utils import ensure_bgr, write_video_frame, finalize_video
 
 @ExportRoutine("sensor_msgs/msg/CompressedImage", ["video/mp4", "video/avi"], mode=ExportMode.SINGLE_FILE)
 def export_compressed_video(msg, path: Path, fmt: str, metadata: ExportMetadata):
@@ -41,51 +43,17 @@ def export_compressed_video(msg, path: Path, fmt: str, metadata: ExportMetadata)
     Returns:
         None
     """
-    fourcc_map = {
-        "video/mp4": cv2.VideoWriter_fourcc(*'mp4v'),
-        "video/avi": cv2.VideoWriter_fourcc(*'XVID')
-    }
-
-    ext_map = {
-        "video/mp4": ".mp4",
-        "video/avi": ".avi"
-    }
-
-
-    if fmt not in fourcc_map:
-        raise ValueError(f"Unsupported export format: {fmt}")
-
     np_arr = np.frombuffer(msg.data, dtype=np.uint8)
     img = cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
-
-    if len(img.shape) == 2 or img.shape[2] == 1:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    img = ensure_bgr(img)
 
     ps = export_compressed_video.persistent_storage
+    ts_ns = get_time_from_msg(msg, return_datetime=False)
 
-    image_size = img.shape[:2]
-
-    if "frame_size" not in ps:
-        ps["frame_size"] = image_size
-
-    if image_size != ps["frame_size"]:
-        raise ValueError("All images must have the same dimensions")
-
-    if "writer" not in ps:
-        height, width = image_size
-        writer = cv2.VideoWriter(
-            str(path.with_suffix(ext_map[fmt])),
-            fourcc_map[fmt],
-            30.0,
-            (width, height)
-        )
-        ps["writer"] = writer
-
-    ps["writer"].write(img)
+    write_video_frame(ps, img, ts_ns, path, fmt)
 
     if metadata.index == metadata.max_index:
-        ps["writer"].release()
-        del ps["writer"]
+        finalize_video(ps, path, fmt)
 
 
 @ExportRoutine("sensor_msgs/msg/Image", ["video/mp4", "video/avi"], mode=ExportMode.SINGLE_FILE)
@@ -102,47 +70,14 @@ def export_video(msg, path: Path, fmt: str, metadata: ExportMetadata):
     Returns:
         None
     """
-    fourcc_map = {
-        "video/mp4": cv2.VideoWriter_fourcc(*'mp4v'),
-        "video/avi": cv2.VideoWriter_fourcc(*'XVID')
-    }
-
-    ext_map = {
-        "video/mp4": ".mp4",
-        "video/avi": ".avi"
-    }
-
-    if fmt not in fourcc_map:
-        raise ValueError(f"Unsupported export format: {fmt}")
-
     raw = np.frombuffer(msg.data, dtype=np.uint8)
     img = convert_image(raw, msg.encoding, msg.width, msg.height)
-
-    if len(img.shape) == 2 or img.shape[2] == 1:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    img = ensure_bgr(img)
 
     ps = export_video.persistent_storage
+    ts_ns = get_time_from_msg(msg, return_datetime=False)
 
-    image_size = img.shape[:2]
-
-    if "frame_size" not in ps:
-        ps["frame_size"] = image_size
-
-    if image_size != ps["frame_size"]:
-        raise ValueError("All images must have the same dimensions")
-
-    if "writer" not in ps:
-        height, width = image_size
-        writer = cv2.VideoWriter(
-            str(path.with_suffix(ext_map[fmt])),
-            fourcc_map[fmt],
-            30.0,
-            (width, height)
-        )
-        ps["writer"] = writer
-
-    ps["writer"].write(img)
+    write_video_frame(ps, img, ts_ns, path, fmt)
 
     if metadata.index == metadata.max_index:
-        ps["writer"].release()
-        del ps["writer"]
+        finalize_video(ps, path, fmt)
