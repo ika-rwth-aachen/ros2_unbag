@@ -611,7 +611,7 @@ class Exporter:
                 # Use pre-fetched export handler
                 export_handler = self.topic_handlers[topic]
                 if export_handler:
-                    export_handler(msg, full_path, fmt, metadata)
+                    export_handler(msg, full_path, fmt, metadata, topic=topic)
                     progress_queue.put(1)
 
             except Exception as e:
