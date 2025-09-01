@@ -1,0 +1,46 @@
+name: unit-tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: rwthika/ros2:jazzy
+      options: --user root
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system deps for headless Qt/OpenCV
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-keysyms1 libxkbcommon-x11-0 \
+            libgl1
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Verify ROS2 Python environment
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.sh
+          python3 -c "import rclpy, rosidl_runtime_py; from sensor_msgs import msg as _; print('ROS2 OK')"
+
+      - name: Install package and test deps
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.sh
+          python3 -m pip install -e .[test]
+
+      - name: Run unit-tests
+        shell: bash
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -eo pipefail
+          source /opt/ros/jazzy/setup.sh
+          pytest -q --maxfail=1 --disable-warnings

@@ -23,10 +23,17 @@ def get_time_from_msg(msg, return_datetime=True):
             sec = msg.stamp.sec
             nanosec = msg.stamp.nanosec
         except AttributeError:
-            logger.warning("Message has no valid timestamp; falling back to datetime.now() - This may lead to incorrect behavior.")
-            return datetime.now() if return_datetime else datetime.now().timestamp()
+            logger.warning(
+                "Message has no valid timestamp; falling back to datetime.now() - This may lead to incorrect behavior."
+            )
+            now = datetime.now()
+            if return_datetime:
+                return now
+            return int(now.timestamp() * 1_000_000_000)
 
-    return datetime.fromtimestamp(sec + nanosec * 1e-9) if return_datetime else int(sec * 1e9 + nanosec)
+    if not return_datetime:
+        return int(sec) * 1_000_000_000 + int(nanosec)
+    return datetime.fromtimestamp(sec + nanosec * 1e-9)
 
 
 _PLACEHOLDER_RE = re.compile(r"%(name|index|timestamp)")

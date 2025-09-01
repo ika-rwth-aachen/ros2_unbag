@@ -345,7 +345,8 @@ class Exporter:
             None
         """
         latest_messages = {}
-        latest_ts_seen = 0.0
+        latest_ts_seen = 0
+        discard_eps_ns = int(discard_eps * 1e9) if discard_eps is not None else None
 
         while True:
             res = self.bag_reader.read_next_message()
@@ -377,8 +378,7 @@ class Exporter:
                     frame = None
                     break
                 sel_ts, sel_msg = latest_messages[t]
-                if discard_eps is not None and abs(master_ts -
-                                                   sel_ts) > discard_eps:
+                if discard_eps_ns is not None and abs(master_ts - sel_ts) > discard_eps_ns:
                     frame = None
                     break
                 frame[t] = sel_msg
@@ -390,8 +390,9 @@ class Exporter:
                 for t in self.config:
                     if t == master_topic:
                         continue
-                    if t not in latest_messages or (discard_eps and abs(
-                            master_ts - latest_messages[t][0]) > discard_eps):
+                    if t not in latest_messages or (
+                        discard_eps_ns is not None and abs(master_ts - latest_messages[t][0]) > discard_eps_ns
+                    ):
                         dropped_frames[t] += 1
 
 
@@ -410,7 +411,8 @@ class Exporter:
             None
         """
         buffers = defaultdict(deque)
-        latest_ts_seen = 0.0
+        latest_ts_seen = 0
+        discard_eps_ns = int(discard_eps * 1e9)
 
         while True:
             res = self.bag_reader.read_next_message()
@@ -433,7 +435,7 @@ class Exporter:
             # Attempt to process all buffered master messages up to current threshold
             while buffers[master_topic]:
                 candidate_ts, candidate_msg = buffers[master_topic][0]
-                if candidate_ts + discard_eps > latest_ts_seen:
+                if candidate_ts + discard_eps_ns > latest_ts_seen:
                     break  # Delay until more data arrives
 
                 master_ts = candidate_ts
@@ -444,9 +446,11 @@ class Exporter:
                 for t in self.config:
                     if t == master_topic:
                         continue
-                    candidates = [(ts_, msg_)
-                                  for ts_, msg_ in buffers[t]
-                                  if abs(ts_ - master_ts) <= discard_eps]
+                    candidates = [
+                        (ts_, msg_)
+                        for ts_, msg_ in buffers[t]
+                        if abs(ts_ - master_ts) <= discard_eps_ns
+                    ]
                     if not candidates:
                         valid = False
                         break
@@ -462,15 +466,14 @@ class Exporter:
                         if t == master_topic:
                             continue
                         if not any(
-                                abs(ts_ - master_ts) <= discard_eps
-                                for ts_, _ in buffers[t]):
+                            abs(ts_ - master_ts) <= discard_eps_ns for ts_, _ in buffers[t]):
                             dropped_frames[t] += 1
 
                 # Remove processed master message
                 buffers[master_topic].popleft()
 
             # Remove stale messages from buffers
-            expire_before = latest_ts_seen - discard_eps * 2
+            expire_before = latest_ts_seen - discard_eps_ns * 2
             for t in buffers:
                 while buffers[t] and buffers[t][0][0] < expire_before:
                     buffers[t].popleft()

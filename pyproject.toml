@@ -39,3 +39,9 @@ include = ["ros2_unbag*"]
 
 [tool.setuptools.package-data]
 "ros2_unbag.ui" = ["assets/loading.gif", "assets/title.png"]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0"
+]
