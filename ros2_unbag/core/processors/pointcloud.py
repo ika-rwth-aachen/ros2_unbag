@@ -27,8 +27,7 @@ import numpy as np
 import yaml
 
 from ros2_unbag.core.processors.base import Processor
-from ros2_unbag.core.utils.pointcloud_utils import convert_pointcloud2_to_pypcd
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, PointField
 
 
 @Processor("sensor_msgs/msg/PointCloud2", ["field_mapping"])
@@ -84,22 +83,89 @@ def pointcloud_remove_fields(msg, fields_to_remove: str):
         PointCloud2: Modified PointCloud2 message with specified fields removed.
     """
 
-    # TODO: Implement a more efficient way to remove fields
+    # Check if the user actually specified fields to remove
     if not fields_to_remove:
         return msg
-    
-    # Convert pointcloud2 message to pypcd PointCloud object
-    pc = convert_pointcloud2_to_pypcd(msg)
 
-    # Filter out fields to remove
-    fields_to_remove = set(fields_to_remove.split(","))
-    fields_to_keep = [f for f in pc.fields if f not in fields_to_remove]
-    pc_filtered = pc[fields_to_keep]
+    remove_set = {f.strip() for f in fields_to_remove.split(",") if f.strip()}
 
-    # Convert back to PointCloud2 message
-    msg = pc_filtered.to_msg(msg.header)
+    # Build list of fields to keep in original order
+    original_fields = list(msg.fields)
+    kept = [f for f in original_fields if f.name not in remove_set]
 
-    return msg
+    # Nothing to remove or removing all would produce invalid cloud
+    if len(kept) == len(original_fields) or len(kept) == 0:
+        return msg
+
+    # Only support height >= 1
+    if msg.height < 1:
+        raise ValueError("When removing fields, PointCloud2.height must be >= 1")
+
+    # Helper: datatype sizes (bytes)
+    type_size = {
+        PointField.INT8: 1,
+        PointField.UINT8: 1,
+        PointField.INT16: 2,
+        PointField.UINT16: 2,
+        PointField.INT32: 4,
+        PointField.UINT32: 4,
+        PointField.FLOAT32: 4,
+        PointField.FLOAT64: 8,
+    }
+
+    # Precompute source segments and construct new fields with compacted offsets
+    kept_sorted = sorted(kept, key=lambda f: f.offset)
+    segments = []  # (src_offset, size, dst_offset)
+    new_fields = []
+    dst_offset = 0
+    for field in kept_sorted:
+        size = type_size.get(field.datatype, 0) * (field.count if getattr(field, "count", 1) else 1)
+        if size == 0:
+            raise ValueError(f"Unsupported PointField datatype for field removal: {field.datatype}")
+        segments.append((field.offset, size, dst_offset))
+        nf = PointField()
+        nf.name = field.name
+        nf.offset = dst_offset
+        nf.datatype = field.datatype
+        # Some ROS2 PointField definitions may not include 'count' explicitly; default to 1
+        nf.count = field.count if hasattr(field, "count") and field.count else 1
+        new_fields.append(nf)
+        dst_offset += size
+
+    # If all segments were skipped due to unknown types, return original message
+    if not segments:
+        return msg
+
+    new_point_step = dst_offset
+    new_row_step = new_point_step * msg.width
+
+    # Prepare new data buffer; respect row padding in source and pack rows densely in output
+    num_rows = msg.height if msg.height > 0 else 1
+    src = memoryview(msg.data)
+    new_data = bytearray(new_row_step * num_rows)
+
+    for r in range(num_rows):
+        src_row_base = r * msg.row_step
+        dst_row_base = r * new_row_step
+        for c in range(msg.width):
+            src_base = src_row_base + c * msg.point_step
+            dst_base = dst_row_base + c * new_point_step
+            for s_off, size, d_off in segments:
+                new_data[dst_base + d_off: dst_base + d_off + size] = src[src_base + s_off: src_base + s_off + size]
+
+    # Assemble new PointCloud2 message
+    out = PointCloud2()
+    out.header = msg.header
+    out.height = msg.height
+    out.width = msg.width
+    out.fields = new_fields
+    out.is_bigendian = msg.is_bigendian
+    out.point_step = new_point_step
+    out.row_step = new_row_step
+    out.is_dense = msg.is_dense
+    out.data = bytes(new_data)
+
+    return out
 
 
 @Processor("sensor_msgs/msg/PointCloud2", ["transform_from_yaml"])

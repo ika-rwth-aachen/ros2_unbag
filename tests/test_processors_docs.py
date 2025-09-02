@@ -20,26 +20,34 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import importlib
-import pkgutil
+from collections import defaultdict
 
-from .base import Processor
-
-
-def load_all_processors():
-    """
-    Dynamically import all modules in the current package to register Processor handlers.
-
-    Args:
-        None
-
-    Returns:
-        None
-    """
-    package = __name__
-    for _, module_name, _ in pkgutil.iter_modules(__path__):
-        importlib.import_module(f"{package}.{module_name}")
+from ros2_unbag.core.processors.base import Processor
 
 
-# Load all modules when the package is imported 
-load_all_processors()
+def setup_function(_):
+    Processor.registry = defaultdict(list)
+
+
+def test_processor_doc_arg_extraction():
+    @Processor(["pkg/Msg"], ["fmt"]) 
+    def handler(msg, alpha, beta: int = 2):
+        """
+        Example with documented args.
+
+        Args:
+            msg: Message object (ignored by get_args).
+            alpha (int): first param.
+            beta (int): second param with default.
+        """
+        return (msg, alpha, beta)
+
+    args = Processor.get_args("pkg/Msg", "fmt")
+    assert set(args.keys()) == {"alpha", "beta"}
+    # Docstrings parsed
+    assert args["alpha"][1].startswith("first param")
+    assert args["beta"][1].startswith("second param")
+
+    required = Processor.get_required_args("pkg/Msg", "fmt")
+    assert required == ["alpha"]
+
