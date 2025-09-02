@@ -21,7 +21,6 @@
 # SOFTWARE.
 
 import importlib
-import os
 import pkgutil
 
 from .base import ExportRoutine, ExportMode
@@ -41,7 +40,5 @@ def load_all_routines():
         importlib.import_module(f"{package}.{module_name}")
 
 
-# Load all modules when the package is imported unless disabled via env
-# Set ROS2_UNBAG_AUTOLOAD=0 to skip autoloading (useful for unit tests without ROS deps)
-if os.environ.get("ROS2_UNBAG_AUTOLOAD", "1") != "0":
-    load_all_routines()
+# Load all modules when the package is imported
+load_all_routines()
