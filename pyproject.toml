@@ -33,6 +33,9 @@ unbag = "ros2_unbag.export:ExportCommand"
 [project.entry-points."ros2cli.extension_point"]
 ros2_unbag = "ros2cli.command:CommandExtension"
 
+[project.scripts]
+ros2-unbag = "ros2_unbag.export:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ros2_unbag*"]

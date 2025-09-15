@@ -24,11 +24,18 @@ import importlib
 import json
 import os
 import sys
+from typing import Optional, Sequence
 
 from PySide6 import QtWidgets
 from PySide6.QtWidgets import QMessageBox
-from ros2cli.command import CommandExtension
 from tqdm import tqdm
+
+# ros2cli is optional
+try:
+    from ros2cli.command import CommandExtension
+except Exception:
+    class CommandExtension:
+        pass
 
 from ros2_unbag.core.bag_reader import BagReader
 from ros2_unbag.core.exporter import Exporter
@@ -413,3 +420,27 @@ class ExportCommand(CommandExtension):
         module = importlib.util.module_from_spec(spec)
         sys.modules["temp"] = module
         spec.loader.exec_module(module)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """Standalone CLI entry point for environments without ros2cli.
+
+    Keeps behavior consistent with the ROS 2 verb by wiring argparse
+    to the same ExportCommand implementation.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="ros2_unbag",
+        description=(
+            "Export selected topics from ROS 2 bag files to various formats."
+        ),
+    )
+    cmd = ExportCommand()
+    cmd.add_arguments(parser, "ros2_unbag")
+    args = parser.parse_args(argv)
+    rc = cmd.main(parser, args)
+    if isinstance(rc, int):
+        return rc
+    return 0
+
