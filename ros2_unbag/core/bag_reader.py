@@ -214,11 +214,10 @@ class BagReader:
             msg_type = get_message(self.topic_types[topic])
             msg = deserialize_message(data, msg_type)
 
-            # Handle TFMessage specifically to extract the first transform
+            # Handle TFMessage - keep the full message with all transforms
+            # The export routines can handle the full TFMessage structure
             if type(msg) is TFMessage:
-                if msg.transforms:
-                    msg = msg.transforms[0]
-                else:
+                if not msg.transforms:
                     return None
                 
             return topic, msg, t
