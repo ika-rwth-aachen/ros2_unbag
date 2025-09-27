@@ -126,7 +126,7 @@ class Exporter:
                 raise ValueError(
                     f"SINGLE_FILE mode for '{topic}' forbids %index/%timestamp and strftime in naming/path/subfolder."
                 )
-            if self.export_mode[topic] == ExportMode.MULTI_FILE and not uses_index_or_ts:
+            if self.export_mode[topic] == ExportMode.MULTI_FILE and not (uses_index_or_ts or has_strftime_name):
                 raise ValueError(
                     f"MULTI_FILE mode for '{topic}' requires %index/%timestamp in naming/path/subfolder."
                 )
