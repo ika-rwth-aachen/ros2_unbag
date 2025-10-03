@@ -32,6 +32,7 @@ from tqdm import tqdm
 
 from ros2_unbag.core.bag_reader import BagReader
 from ros2_unbag.core.exporter import Exporter
+from ros2_unbag.core.routines.base import ExportRoutine, ExportMode
 import ros2_unbag.core.processors
 import ros2_unbag.core.routines
 from ros2_unbag.ui.main_window import UnbagApp
@@ -56,8 +57,8 @@ class ExportCommand(CommandExtension):
             help="Export spec: /topic:format[:subdir]. Can be repeated.")
         parser.add_argument("--output-dir", "-o", help="Base output directory")
         parser.add_argument(
-            "--naming", default="%name_%index",
-            help="Naming pattern. Supports %%name, %%index, and strftime (e.g. `%%Y-%%m-%%d_%%H-%%M-%%S`) which uses ROS timestamp.")
+            "--naming", default=None,
+            help="Naming pattern. Supports %%name, %%index, and strftime (e.g. `%%Y-%%m-%%d_%%H-%%M-%%S`) which uses ROS timestamp. Defaults to %%name for single-file routines and %%name_%%index for multi-file routines.")
         parser.add_argument(
             "--resample",
             help="Optional resampling: /master_topic:association[,discard_eps]")
@@ -216,6 +217,7 @@ class ExportCommand(CommandExtension):
         """
         config = {}
         config["__global__"] = {"cpu_percentage": args.cpu_percentage}
+        provided_naming = args.naming.strip() if args.naming else None
         for spec in args.export or []:
             parts = spec.split(":")
             if len(parts) < 2:
@@ -224,11 +226,20 @@ class ExportCommand(CommandExtension):
             subdir = parts[2] if len(parts) > 2 else ""
             if topic not in bag_reader.topic_types:
                 sys.exit(f"Topic {topic} not found in bag.")
+            topic_type = bag_reader.topic_types[topic]
+            mode = ExportRoutine.get_mode(topic_type, fmt)
+            if provided_naming is None:
+                if mode == ExportMode.SINGLE_FILE:
+                    naming = "%name"
+                else:
+                    naming = "%name_%index"
+            else:
+                naming = provided_naming
             config[topic] = {
                 "format": fmt,
                 "path": args.output_dir or ".",
                 "subfolder": subdir.strip("/"),
-                "naming": args.naming.strip()
+                "naming": naming
             }
 
         if args.resample:

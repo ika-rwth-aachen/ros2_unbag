@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from collections import defaultdict
+from collections import defaultdict, deque
 import os
 
 from tf2_msgs.msg import TFMessage
@@ -52,6 +52,7 @@ class BagReader:
         self.reader = SequentialReader()
         self.topic_types = {}
         self.metadata = None
+        self._tf_queue = deque()    # Queue for TF messages - used to handle transforms
         self._open_bag()
 
     def _detect_storage_id(self):
@@ -207,20 +208,29 @@ class BagReader:
         Raises:
             RuntimeError: If reading or deserialization fails.
         """
+
+        # Check if there are TF messages in the queue, if so return the next one
+        if self._tf_queue:
+            return self._tf_queue.popleft()
+
+        # Otherwise read the next message from the bag
         if not self.reader.has_next():
             return None
         try:
+            # Read the next message and deserialize it
             topic, data, t = self.reader.read_next()
             msg_type = get_message(self.topic_types[topic])
             msg = deserialize_message(data, msg_type)
 
-            # Handle TFMessage specifically to extract the first transform
-            if type(msg) is TFMessage:
-                if msg.transforms:
-                    msg = msg.transforms[0]
-                else:
-                    return None
-                
+            # If the message is a TFMessage, handle it specially
+            if isinstance(msg, TFMessage):
+                for transform in msg.transforms:
+                    self._tf_queue.append((topic, transform, t))
+                if self._tf_queue:
+                    return self._tf_queue.popleft()
+                return None
+
+            # Return the topic, message, and timestamp
             return topic, msg, t
         except Exception as e:
             raise RuntimeError(f"Failed to read message: {e}")
