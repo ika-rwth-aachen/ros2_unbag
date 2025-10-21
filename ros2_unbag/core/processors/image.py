@@ -23,10 +23,12 @@
 import cv2
 import numpy as np
 
-from sensor_msgs.msg import CompressedImage, Image
-
 from ros2_unbag.core.processors.base import Processor
 from ros2_unbag.core.utils.image_utils import convert_image
+from ros2_unbag.core.utils.typestore import get_message_class
+
+CompressedImageType = get_message_class("sensor_msgs/msg/CompressedImage")
+ImageType = get_message_class("sensor_msgs/msg/Image")
 
 
 @Processor(["sensor_msgs/msg/CompressedImage", "sensor_msgs/msg/Image"], ["apply_color_map"])
@@ -54,12 +56,12 @@ def apply_color_map(msg, color_map: int = 1):
             f"Invalid color map value: {color_map}. Must be an integer.")
 
     # Decode incoming message into a cv2 image
-    if isinstance(msg, CompressedImage):
+    if isinstance(msg, CompressedImageType):
         arr = np.frombuffer(msg.data, np.uint8)
         cv_image = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
         if cv_image is None:
             raise RuntimeError("Failed to decode CompressedImage")
-    elif isinstance(msg, Image):
+    elif isinstance(msg, ImageType):
         raw = np.frombuffer(msg.data, dtype=np.uint8)
         cv_image = convert_image(raw, msg.encoding.lower(), msg.width, msg.height)
     else:
@@ -74,13 +76,13 @@ def apply_color_map(msg, color_map: int = 1):
     recolored = cv2.applyColorMap(cv_image, color_map)
 
     # Reencode the recolored image back to the original format
-    if isinstance(msg, CompressedImage):
+    if isinstance(msg, CompressedImageType):
         ext = '.jpg' if 'jpeg' in msg.format.lower() else '.png'
         success, encoded = cv2.imencode(ext, recolored)
         if not success:
             raise RuntimeError("Failed to encode recolored image")
         msg.data = encoded.tobytes()
-    elif isinstance(msg, Image):
+    elif isinstance(msg, ImageType):
         # recolored is H×W×3, BGR
         msg.encoding = "bgr8"
         msg.height = recolored.shape[0]

@@ -41,9 +41,9 @@ This project includes the following third-party dependencies. Each is used unmod
 
 ---------------------------------------------------------------
 
-7. rosbag2_py
+7. rosbags
 - License: Apache License 2.0
-- Source: https://github.com/ros2/rosbag2
+- Source: https://gitlab.com/ternaris/rosbags
 
 ---------------------------------------------------------------
 
@@ -53,13 +53,7 @@ This project includes the following third-party dependencies. Each is used unmod
 
 ---------------------------------------------------------------
 
-9. rosidl-runtime-py
-- License: Apache License 2.0
-- Source: https://github.com/ros2/rosidl_python
-
----------------------------------------------------------------
-
-10. tqdm
+9. tqdm
 - License: Apache License 2.0
 - Source: https://pypi.org/project/tqdm/
 

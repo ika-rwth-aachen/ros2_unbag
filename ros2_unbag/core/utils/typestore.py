@@ -20,32 +20,45 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import numpy as np
-from pypcd4 import PointCloud
-from pypcd4.pointcloud2 import build_dtype_from_msg
+"""Helpers for accessing a shared rosbags typestore."""
 
-def convert_pointcloud2_to_pypcd(msg):
+from functools import lru_cache
+from typing import Any
+
+from rosbags.typesys import Stores, get_typestore
+
+
+@lru_cache(maxsize=1)
+def get_default_typestore():
     """
-    Convert a PointCloud2 message to a Pypcd PointCloud object.
+    Return the lazily-instantiated ROS 2 Jazzy typestore used across the project.
+
+    Args:
+        None
+
+    Returns:
+        rosbags.typesys.Typestore: The ROS 2 Jazzy typestore.
+    """
+    return get_typestore(Stores.ROS2_JAZZY)
+
+
+def get_message_class(ros_type: str) -> Any:
+    """
+    Resolve and return the dataclass implementing ``ros_type`` from the default typestore.
     
     Args:
-        msg (sensor_msgs.msg.PointCloud2): PointCloud2 message instance.
-    
+        ros_type (str): The fully-qualified ROS message type name, e.g., "std_msgs/msg/String".
+
     Returns:
-        pypcd4.PointCloud: Pypcd PointCloud object.
+        Any: The dataclass implementing the specified ROS message type.
+
+    Raises:
+        KeyError: If the specified message type is not registered in the default typestore.
     """
-
-    # Build dtype from message fields
-    dtype_fields = build_dtype_from_msg(msg)
-    dtype = np.dtype(dtype_fields)
-
-    # Get field names and types
-    field_names = tuple(f.name for f in msg.fields)
-    np_types = tuple(dtype[name].type for name in field_names)
-    structured_array = np.frombuffer(msg.data, dtype=dtype)
-    points_np = np.vstack([structured_array[name] for name in field_names]).T
-
-    # Build point cloud
-    pc = PointCloud.from_points(points_np, field_names, np_types)
-
-    return pc
+    typestore = get_default_typestore()
+    try:
+        return typestore.types[ros_type]
+    except KeyError as exc:
+        raise KeyError(
+            f"Message type '{ros_type}' is not registered in the default typestore."
+        ) from exc

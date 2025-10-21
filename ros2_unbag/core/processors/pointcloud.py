@@ -27,7 +27,10 @@ import numpy as np
 import yaml
 
 from ros2_unbag.core.processors.base import Processor
-from sensor_msgs.msg import PointCloud2, PointField
+from ros2_unbag.core.utils.typestore import get_message_class
+
+PointCloud2Type = get_message_class("sensor_msgs/msg/PointCloud2")
+PointFieldType = get_message_class("sensor_msgs/msg/PointField")
 
 
 @Processor("sensor_msgs/msg/PointCloud2", ["field_mapping"])
@@ -103,14 +106,14 @@ def pointcloud_remove_fields(msg, fields_to_remove: str):
 
     # Helper: datatype sizes (bytes)
     type_size = {
-        PointField.INT8: 1,
-        PointField.UINT8: 1,
-        PointField.INT16: 2,
-        PointField.UINT16: 2,
-        PointField.INT32: 4,
-        PointField.UINT32: 4,
-        PointField.FLOAT32: 4,
-        PointField.FLOAT64: 8,
+        PointFieldType.INT8: 1,
+        PointFieldType.UINT8: 1,
+        PointFieldType.INT16: 2,
+        PointFieldType.UINT16: 2,
+        PointFieldType.INT32: 4,
+        PointFieldType.UINT32: 4,
+        PointFieldType.FLOAT32: 4,
+        PointFieldType.FLOAT64: 8,
     }
 
     # Precompute source segments and construct new fields with compacted offsets
@@ -123,7 +126,7 @@ def pointcloud_remove_fields(msg, fields_to_remove: str):
         if size == 0:
             raise ValueError(f"Unsupported PointField datatype for field removal: {field.datatype}")
         segments.append((field.offset, size, dst_offset))
-        nf = PointField()
+        nf = PointFieldType()
         nf.name = field.name
         nf.offset = dst_offset
         nf.datatype = field.datatype
@@ -154,7 +157,7 @@ def pointcloud_remove_fields(msg, fields_to_remove: str):
                 new_data[dst_base + d_off: dst_base + d_off + size] = src[src_base + s_off: src_base + s_off + size]
 
     # Assemble new PointCloud2 message
-    out = PointCloud2()
+    out = PointCloud2Type()
     out.header = msg.header
     out.height = msg.height
     out.width = msg.width
@@ -234,7 +237,7 @@ def pointcloud_apply_transform_from_yaml(msg, custom_frame_path: str):
         struct.pack_into('f', data, i + z_off, transformed[2])
 
     # Construct the new PointCloud2 message
-    transformed_msg = PointCloud2()
+    transformed_msg = PointCloud2Type()
     transformed_msg.header = msg.header
     transformed_msg.height = msg.height
     transformed_msg.width = msg.width

@@ -20,149 +20,275 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import bisect
-from collections import defaultdict
+"""Writer utilities for creating ROS 2 bag files."""
 
-from rclpy.serialization import serialize_message
-from rosbag2_py import (
-    ConverterOptions,
-    SequentialWriter,
-    StorageOptions,
-    TopicMetadata,
-)
+from __future__ import annotations
+
+from bisect import bisect_right
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, DefaultDict, Dict, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Union
+
+from rosbags.highlevel import AnyWriter
+from rosbags.typesys import Stores, get_typestore
+
+BagPath = Union[str, Path]
+TopicName = str
+Timestamp = int
+MessageEntry = Tuple[Timestamp, Any]
+MessagesByTopic = Mapping[TopicName, Sequence[MessageEntry]]
+TopicTypeMap = Mapping[TopicName, str]
 
 
 class BagWriter:
-    # Handles writing messages to a ROS2 bag file
+    """Create ROS 2 bag files compatible with ``rosbags``."""
 
-    def __init__(self, output_bag_path):
-        """
-        Initialize BagWriter with output path and prepare SequentialWriter.
+    def __init__(self, output_bag_path: BagPath, *, storage_id: str = "mcap") -> None:
+        """Prepare the writer for the given output bag path.
 
         Args:
-            output_bag_path: Path to the output ROS2 bag file.
+            output_bag_path: Target directory or file for the resulting bag.
+            storage_id: Optional storage backend identifier understood by ``rosbags``.
 
         Returns:
             None
         """
-        self.output_bag_path = output_bag_path
-        self.writer = SequentialWriter()
+        self._bag_path = Path(output_bag_path)
+        self._storage_id = storage_id
 
-    def open(self, topic_types):
-        """
-        Configure and open the bag at output path, creating topics with given types.
+        self._writer: Optional[AnyWriter] = None
+        self._connections: MutableMapping[TopicName, Any] = {}
+        self._connection_types: Dict[TopicName, str] = {}
+        self._typestore = get_typestore(Stores.ROS2_JAZZY)
 
-        Args:
-            topic_types: Dict mapping topic names to message type strings.
-
-        Returns:
-            None
-        """
-        storage_options = StorageOptions(uri=self.output_bag_path,
-                                         storage_id='mcap')
-        converter_options = ConverterOptions(input_serialization_format='cdr',
-                                             output_serialization_format='cdr')
-        self.writer.open(storage_options, converter_options)
-        for topic, msg_type_str in topic_types.items():
-            metadata = TopicMetadata(
-                0,  # id
-                topic,  # name
-                msg_type_str,  # type
-                'cdr',  # serialization_format
-                [],  # offered_qos_profiles
-                ''  # type_description_hash
-            )
-            self.writer.create_topic(metadata)
-
-    def close(self):
-        """
-        Close the bag writer and release resources.
+    def __enter__(self) -> "BagWriter":
+        """Support context manager usage.
 
         Args:
             None
 
         Returns:
-            None
+            BagWriter: This instance.
         """
-        del self.writer
+        return self
 
-    def write(self, topic, msg, timestamp):
-        """
-        Serialize and write a single message to the bag under the specified topic and timestamp.
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Ensure resources are released when leaving a context.
 
         Args:
-            topic: Topic name (str).
-            msg: ROS2 message instance.
-            timestamp: Timestamp for the message (int or float).
+            exc_type: Exception type if an error occurred.
+            exc_val: Exception value if an error occurred.
+            exc_tb: Exception traceback if an error occurred.
 
         Returns:
             None
         """
-        # Write a single message to the bag
-        self.writer.write(topic, serialize_message(msg), timestamp)
+        self.close()
 
-    def write_synchronized(self, messages_by_topic, reference_topic):
-        """
-        For each timestamp of the reference topic, select and write the nearest message (≤ timestamp) from each topic.
+    @property
+    def is_open(self) -> bool:
+        """Return ``True`` when the underlying writer is open.
 
         Args:
-            messages_by_topic: Dict mapping topic names to lists of (timestamp, message) tuples.
-            reference_topic: Topic name to synchronize against (str).
+            None
+
+        Returns:
+            bool: ``True`` if the writer has been opened.
+        """
+        return self._writer is not None
+
+    def open(self, topic_types: TopicTypeMap, *, storage_id: Optional[str] = None) -> None:
+        """Open the bag and register the provided topics.
+
+        Args:
+            topic_types: Mapping of topic names to ROS 2 message type strings.
+            storage_id: Optional storage backend override. Defaults to the constructor value.
 
         Returns:
             None
         """
-        # Sort reference topic messages
-        ref_msgs = sorted(messages_by_topic[reference_topic],
-                          key=lambda x: x[0])
-        ref_timestamps = [ts for ts, _ in ref_msgs]
+        if self.is_open:
+            self.close()
 
-        # Sort messages for each topic
-        topic_ts_msg = {}
-        for topic, msgs in messages_by_topic.items():
-            sorted_msgs = sorted(msgs, key=lambda x: x[0])
-            timestamps = [ts for ts, _ in sorted_msgs]
-            topic_ts_msg[topic] = (timestamps, sorted_msgs)
+        storage = storage_id or self._storage_id
+        try:
+            self._writer = AnyWriter(self._bag_path, storage_id=storage, default_typestore=self._typestore)
+        except TypeError:
+            # Fallback for older rosbags versions without default_typestore argument.
+            self._writer = AnyWriter(self._bag_path, storage_id=storage)
+        self._writer.open()
 
-        # For each reference timestamp, find the nearest (<=) message for each topic
-        for i, t_sync in enumerate(ref_timestamps):
-            for topic in messages_by_topic:
-                timestamps, msgs = topic_ts_msg[topic]
+        self._connections.clear()
+        self._connection_types = dict(topic_types)
+        for topic, msg_type in topic_types.items():
+            try:
+                self._connections[topic] = self._writer.add_connection(topic, msg_type, typestore=self._typestore)
+            except TypeError:
+                self._connections[topic] = self._writer.add_connection(topic, msg_type)
 
+    def close(self) -> None:
+        """Close the bag writer and reset internal state.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        if self._writer is not None:
+            self._writer.close()
+            self._writer = None
+        self._connections.clear()
+        self._connection_types.clear()
+
+    def write(self, topic: TopicName, message: Any, timestamp: Timestamp) -> None:
+        """Serialize and write a single message to the bag.
+
+        Args:
+            topic: Name of the topic to write to.
+            message: ROS 2 message instance ready for serialization.
+            timestamp: Nanosecond timestamp associated with the message.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If the writer has not been opened.
+            ValueError: If the topic has not been registered.
+        """
+        if not self.is_open:
+            raise RuntimeError("BagWriter must be opened before writing messages.")
+        if topic not in self._connections:
+            raise ValueError(f"Topic '{topic}' has not been registered; call open() first.")
+
+        connection = self._connections[topic]
+        msg_type = self._connection_types[topic]
+
+        try:
+            serialized = self._typestore.serialize_cdr(message, msg_type)
+        except Exception as exc:
+            raise TypeError(
+                f"Failed to serialize message for topic '{topic}' of type '{msg_type}'. "
+                "Ensure the payload matches the typestore definition or register the type explicitly."
+            ) from exc
+
+        self._writer.write(connection, timestamp, serialized)
+
+    def write_synchronized(self, messages_by_topic: MessagesByTopic, reference_topic: TopicName) -> None:
+        """Synchronize messages to the reference topic’s timeline and write them.
+
+        For each timestamp emitted on the reference topic, the most recent message
+        with a timestamp less than or equal to that reference time is selected for every
+        other topic. When a topic has no samples prior to the reference timestamp the
+        earliest available sample is used.
+
+        Args:
+            messages_by_topic: Mapping from topic name to sequences of ``(timestamp, message)`` tuples.
+            reference_topic: Name of the topic providing the reference timeline.
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If the reference topic is missing from the provided data.
+        """
+        if reference_topic not in messages_by_topic:
+            raise ValueError(f"Reference topic '{reference_topic}' is missing from message data.")
+
+        sorted_messages = self._prepare_sorted(messages_by_topic)
+        ref_timestamps, ref_entries = sorted_messages[reference_topic]
+
+        for index, ref_time in enumerate(ref_timestamps):
+            for topic, (timestamps, entries) in sorted_messages.items():
                 if topic == reference_topic:
-                    msg = msgs[i][1]
+                    _, message = ref_entries[index]
                 else:
-                    idx = bisect.bisect_right(timestamps, t_sync) - 1
-                    if idx < 0:
-                        idx = 0
-                    msg = msgs[idx][1]
+                    choice = self._select_entry(timestamps, entries, ref_time)
+                    _, message = choice
+                self.write(topic, message, ref_time)
 
-                self.write(topic, msg, t_sync)
-
-    def resample_and_write(self, reader, selected_topics, reference_topic):
-        """
-        Read messages for selected topics, open the bag, and write either all messages in order or synchronized to a reference topic.
+    def resample_and_write(
+        self,
+        reader: Any,
+        selected_topics: Iterable[TopicName],
+        reference_topic: Optional[TopicName],
+    ) -> None:
+        """Read, optionally synchronize, and persist messages from a :class:`BagReader`.
 
         Args:
-            reader: BagReader instance.
-            selected_topics: List of topic names to export.
-            reference_topic: Topic name to synchronize against, or None.
+            reader: Instance providing a ``read_messages`` generator and ``topic_types`` mapping.
+            selected_topics: Topics to export to the new bag.
+            reference_topic: Optional name of the topic used for synchronization.
 
         Returns:
             None
         """
-        messages_by_topic = defaultdict(list)
-        for topic, msg, t in reader.read_messages(selected_topics):
-            messages_by_topic[topic].append((t, msg))
+        messages: DefaultDict[TopicName, list] = defaultdict(list)
+        for topic, message, timestamp in reader.read_messages(selected_topics):
+            messages[topic].append((timestamp, message))
 
-        # Open bag for writing with selected topics
-        self.open(
-            {topic: reader.topic_types[topic] for topic in selected_topics})
+        topic_types = {topic: reader.topic_types[topic] for topic in selected_topics}
+        self.open(topic_types)
 
-        # Write all messages (optionally synchronized)
         if reference_topic is None:
-            for topic, msgs in messages_by_topic.items():
-                for t, msg in sorted(msgs, key=lambda x: x[0]):
-                    self.write(topic, msg, t)
+            self._write_all(messages)
         else:
-            self.write_synchronized(messages_by_topic, reference_topic)
+            self.write_synchronized(messages, reference_topic)
+
+    def _prepare_sorted(
+        self,
+        messages_by_topic: MessagesByTopic,
+    ) -> Dict[TopicName, Tuple[Sequence[Timestamp], Sequence[MessageEntry]]]:
+        """Return sorted timestamp/message pairs per topic.
+
+        Args:
+            messages_by_topic: Mapping of topics to timestamped message sequences.
+
+        Returns:
+            Dict[str, Tuple[Sequence[int], Sequence[Tuple[int, Any]]]]: Sorted timestamps and entries.
+
+        Raises:
+            ValueError: If a topic contains no messages.
+        """
+        sorted_data: Dict[TopicName, Tuple[Sequence[Timestamp], Sequence[MessageEntry]]] = {}
+        for topic, entries in messages_by_topic.items():
+            if not entries:
+                raise ValueError(f"Topic '{topic}' does not contain any messages.")
+            ordered = sorted(entries, key=lambda item: item[0])
+            timestamps = tuple(ts for ts, _ in ordered)
+            sorted_data[topic] = (timestamps, ordered)
+        return sorted_data
+
+    @staticmethod
+    def _select_entry(
+        timestamps: Sequence[Timestamp],
+        entries: Sequence[MessageEntry],
+        target_time: Timestamp,
+    ) -> MessageEntry:
+        """Return the entry closest to ``target_time`` without exceeding it.
+
+        Args:
+            timestamps: Ordered timestamps for a topic.
+            entries: Ordered message entries paired with ``timestamps``.
+            target_time: Reference time to match against.
+
+        Returns:
+            Tuple[int, Any]: Selected timestamp and message pair.
+        """
+        index = bisect_right(timestamps, target_time) - 1
+        if index < 0:
+            index = 0
+        return entries[index]
+
+    def _write_all(self, messages_by_topic: Mapping[TopicName, Sequence[MessageEntry]]) -> None:
+        """Write all messages in chronological order per topic without synchronization.
+
+        Args:
+            messages_by_topic: Mapping of topics to timestamped message sequences.
+
+        Returns:
+            None
+        """
+        for topic, entries in messages_by_topic.items():
+            for timestamp, message in sorted(entries, key=lambda item: item[0]):
+                self.write(topic, message, timestamp)

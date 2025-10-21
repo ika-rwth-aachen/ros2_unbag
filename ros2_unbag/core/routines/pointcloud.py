@@ -26,10 +26,12 @@ from pathlib import Path
 import pickle
 
 from pypcd4 import Encoding
-from sensor_msgs.msg import PointField
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 from ros2_unbag.core.utils.pointcloud_utils import convert_pointcloud2_to_pypcd
+from ros2_unbag.core.utils.typestore import get_message_class
+
+PointFieldType = get_message_class("sensor_msgs/msg/PointField")
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"], mode=ExportMode.MULTI_FILE)
@@ -72,7 +74,7 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
 
     # Require FLOAT32 for x,y,z
     for name in ("x", "y", "z"):
-        if field_by_name[name].datatype != PointField.FLOAT32:
+        if field_by_name[name].datatype != PointFieldType.FLOAT32:
             raise ValueError(f"Field '{name}' must be FLOAT32")
 
     offx, offy, offz = field_by_name["x"].offset, field_by_name["y"].offset, field_by_name["z"].offset

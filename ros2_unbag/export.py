@@ -20,14 +20,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import argparse
 import importlib
 import json
 import os
 import sys
+from typing import List, Optional
 
 from PySide6 import QtWidgets
 from PySide6.QtWidgets import QMessageBox
-from ros2cli.command import CommandExtension
 from tqdm import tqdm
 
 from ros2_unbag.core.bag_reader import BagReader
@@ -37,8 +38,17 @@ import ros2_unbag.core.processors
 import ros2_unbag.core.routines
 from ros2_unbag.ui.main_window import UnbagApp
 
+try:
+    from ros2cli.command import CommandExtension as _CommandExtension
+except ImportError:
+    _CommandExtension = None
 
-class ExportCommand(CommandExtension):
+_BaseCommand = _CommandExtension if _CommandExtension is not None else object
+_ROS2_AVAILABLE = _CommandExtension is not None
+_FALLBACK_CLI_NAME = "ros2-unbag"
+
+
+class ExportCommand(_BaseCommand):
 
     def add_arguments(self, parser, cli_name):
         """
@@ -165,7 +175,8 @@ class ExportCommand(CommandExtension):
             int: Exit code (0 for success).
         """
         if not args.bag:
-            sys.exit("Error: No bag file provided. Use 'ros2 unbag <bag_path>' or --gui for GUI mode.")
+            hint = "ros2 unbag" if _ROS2_AVAILABLE else _FALLBACK_CLI_NAME
+            sys.exit(f"Error: No bag file provided. Use '{hint} <bag_path>' or --gui for GUI mode.")
     
         if not os.path.exists(args.bag):
             sys.exit(f"Error: Bag file '{args.bag}' not found.")
@@ -352,6 +363,46 @@ class ExportCommand(CommandExtension):
             dest_file.write(src_file.read())
         
         return True
+
+
+def _build_cli_parser(command: ExportCommand) -> argparse.ArgumentParser:
+    """
+    Construct an argparse parser matching the ROS 2 CLI arguments.
+    
+    Args:
+        command (ExportCommand): The export command instance.
+
+    Returns:
+        argparse.ArgumentParser: Configured argument parser.
+    """
+    prog = _FALLBACK_CLI_NAME
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Export selected topics from a ROS 2 bag into common data formats.",
+    )
+    command.add_arguments(parser, prog)
+    return parser
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """
+    Entry point used by the standalone console script.
+    
+    Args:
+        argv (Optional[List[str]]): List of command-line arguments. Defaults to None, which uses sys.argv.
+
+    Returns:
+        int: Exit code (0 for success).
+    """
+    command = ExportCommand()
+    parser = _build_cli_parser(command)
+    args = parser.parse_args(argv)
+    result = command.main(parser, args)
+    return 0 if result is None else int(result)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
     
 
     def uninstall_interactive(self, routine=True):
