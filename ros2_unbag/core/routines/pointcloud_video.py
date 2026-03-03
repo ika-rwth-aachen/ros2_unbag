@@ -59,8 +59,11 @@ def export_pointcloud_video(
     projection: str = "topdown",
     x_range: float = 50.0,
     y_range: float = 50.0,
+    z_range: float = 10.0,
     view_azimuth: float = 45.0,
     view_elevation: float = 30.0,
+    view_roll: float = 0.0,
+    zoom: float = 1.0,
     bg_color: str = "black",
 ):
     """
@@ -79,13 +82,16 @@ def export_pointcloud_video(
         width (int): Output frame width in pixels.
         height (int): Output frame height in pixels.
         point_size (int): Rendered point radius in pixels.
-        range_min (float or None): Lower bound for colormap normalisation. Auto-detected per frame when None.
-        range_max (float or None): Upper bound for colormap normalisation. Auto-detected per frame when None.
+        range_min (float or None): Lower clip bound for color_field values. Values below this receive the colormap's lowest colour. Auto-detected per frame when None.
+        range_max (float or None): Upper clip bound for color_field values. Values above this receive the colormap's highest colour. Auto-detected per frame when None.
         projection (str): View mode: "topdown", "front", "side", or "matplotlib3d".
-        x_range (float): Half-width of the visible scene in metres (orthographic modes).
-        y_range (float): Half-height of the visible scene in metres (orthographic modes).
+        x_range (float): Half-width of the visible scene in metres (x-axis).
+        y_range (float): Half-height of the visible scene in metres (y-axis).
+        z_range (float): Half-depth of the visible scene in metres (z-axis, matplotlib3d only).
         view_azimuth (float): Camera azimuth angle in degrees (matplotlib3d only).
         view_elevation (float): Camera elevation angle in degrees (matplotlib3d only).
+        view_roll (float): Camera roll angle in degrees (matplotlib3d only).
+        zoom (float): Zoom factor; values > 1 zoom in, < 1 zoom out (matplotlib3d only).
         bg_color (str): Background colour: "black" or "white".
 
     Returns:
@@ -100,8 +106,11 @@ def export_pointcloud_video(
     point_size = int(point_size)
     x_range = float(x_range)
     y_range = float(y_range)
+    z_range = float(z_range)
     view_azimuth = float(view_azimuth)
     view_elevation = float(view_elevation)
+    view_roll = float(view_roll)
+    zoom = float(zoom)
     range_min = float(range_min) if range_min is not None else None
     range_max = float(range_max) if range_max is not None else None
 
@@ -124,8 +133,11 @@ def export_pointcloud_video(
         projection=projection,
         x_range=x_range,
         y_range=y_range,
+        z_range=z_range,
         view_azimuth=view_azimuth,
         view_elevation=view_elevation,
+        view_roll=view_roll,
+        zoom=zoom,
         bg_color=bg_color,
     )
 

@@ -117,11 +117,15 @@ def apply_colormap(values: np.ndarray, cmap_name: str, vmin=None, vmax=None) -> 
     """
     Map scalar values to BGR colours using a matplotlib colormap.
 
+    Values are clipped to [vmin, vmax] before colormap normalisation, so any
+    point whose color_field value falls outside the specified range will receive
+    the colormap's edge colour (lowest or highest colour).
+
     Args:
         values (numpy.ndarray): 1-D array of scalar values.
         cmap_name (str): Matplotlib colormap name (e.g. "jet", "viridis").
-        vmin (float or None): Lower bound for normalisation. Uses array min when None.
-        vmax (float or None): Upper bound for normalisation. Uses array max when None.
+        vmin (float or None): Lower clip/normalisation bound. Uses array min when None.
+        vmax (float or None): Upper clip/normalisation bound. Uses array max when None.
 
     Returns:
         numpy.ndarray: Shape (N, 3) uint8 array of BGR colours.
@@ -135,10 +139,13 @@ def apply_colormap(values: np.ndarray, cmap_name: str, vmin=None, vmax=None) -> 
     if hi == lo:
         hi = lo + 1.0
 
-    norm = mcolors.Normalize(vmin=lo, vmax=hi, clip=True)
+    # Explicitly clip: values below lo → lo, values above hi → hi
+    clipped = np.clip(values, lo, hi)
+
+    norm = mcolors.Normalize(vmin=lo, vmax=hi, clip=False)
     cmap = cm.get_cmap(cmap_name)
     # rgba float [0,1] -> uint8 RGB, then swap to BGR
-    rgba = cmap(norm(values))  # (N, 4) float
+    rgba = cmap(norm(clipped))  # (N, 4) float
     rgb = (rgba[:, :3] * 255).astype(np.uint8)
     bgr = rgb[:, ::-1].copy()  # RGB -> BGR
     return bgr
@@ -156,8 +163,11 @@ def render_frame(
     projection: str = "topdown",
     x_range: float = 50.0,
     y_range: float = 50.0,
+    z_range: float = 10.0,
     view_azimuth: float = 45.0,
     view_elevation: float = 30.0,
+    view_roll: float = 0.0,
+    zoom: float = 1.0,
     bg_color: str = "black",
 ) -> np.ndarray:
     """
@@ -170,13 +180,16 @@ def render_frame(
         width (int): Output frame width in pixels.
         height (int): Output frame height in pixels.
         point_size (int): Rendered point radius in pixels.
-        range_min (float or None): Lower bound for colormap normalisation (auto if None).
-        range_max (float or None): Upper bound for colormap normalisation (auto if None).
+        range_min (float or None): Lower clip bound for color_field values; values below this are clipped to this colour (auto-detect per frame when None).
+        range_max (float or None): Upper clip bound for color_field values; values above this are clipped to this colour (auto-detect per frame when None).
         projection (str): View mode: "topdown", "front", "side", or "matplotlib3d".
-        x_range (float): Half-width of the visible scene in metres (orthographic modes).
-        y_range (float): Half-height of the visible scene in metres (orthographic modes).
+        x_range (float): Half-width of the visible scene in metres (x-axis).
+        y_range (float): Half-height of the visible scene in metres (y-axis).
+        z_range (float): Half-depth of the visible scene in metres (z-axis, matplotlib3d only).
         view_azimuth (float): Camera azimuth in degrees (matplotlib3d only).
         view_elevation (float): Camera elevation in degrees (matplotlib3d only).
+        view_roll (float): Camera roll in degrees (matplotlib3d only).
+        zoom (float): Zoom factor; > 1 zooms in, < 1 zooms out (matplotlib3d only).
         bg_color (str): Background colour, "black" or "white".
 
     Returns:
@@ -190,7 +203,7 @@ def render_frame(
         return _render_matplotlib3d(
             x, y, z, color_values, colormap, width, height,
             point_size, range_min, range_max, view_azimuth, view_elevation,
-            bg_color,
+            view_roll, zoom, bg_color, x_range, y_range, z_range,
         )
 
     # Select which axes to project for each orthographic mode
@@ -285,7 +298,12 @@ def _render_matplotlib3d(
     vmax,
     azimuth: float,
     elevation: float,
+    roll: float,
+    zoom: float,
     bg_color: str,
+    x_range: float = 50.0,
+    y_range: float = 50.0,
+    z_range: float = 10.0,
 ) -> np.ndarray:
     """
     Render a 3-D scatter plot of the point cloud via matplotlib and return a BGR image.
@@ -301,11 +319,16 @@ def _render_matplotlib3d(
         width (int): Frame width in pixels.
         height (int): Frame height in pixels.
         point_size (int): Marker size in matplotlib points.
-        vmin (float or None): Colormap lower bound.
-        vmax (float or None): Colormap upper bound.
+        vmin (float or None): Lower clip bound for colour values.
+        vmax (float or None): Upper clip bound for colour values.
         azimuth (float): Camera azimuth in degrees.
         elevation (float): Camera elevation in degrees.
+        roll (float): Camera roll in degrees.
+        zoom (float): Zoom factor; > 1 zooms in, < 1 zooms out.
         bg_color (str): "black" or "white".
+        x_range (float): Half-extent for the X axis in metres.
+        y_range (float): Half-extent for the Y axis in metres.
+        z_range (float): Half-extent for the Z axis in metres.
 
     Returns:
         numpy.ndarray: H×W×3 BGR uint8 image.
@@ -320,7 +343,6 @@ def _render_matplotlib3d(
     fig_h = height / dpi
 
     bg = "black" if bg_color == "black" else "white"
-    fg = "white" if bg_color == "black" else "black"
 
     fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
     fig.patch.set_facecolor(bg)
@@ -328,8 +350,16 @@ def _render_matplotlib3d(
     ax.set_facecolor(bg)
 
     finite = np.isfinite(x) & np.isfinite(y) & np.isfinite(z) & np.isfinite(color_values)
+
+    # Explicitly clip color values to [vmin, vmax] before passing to matplotlib
+    clipped_color = color_values.copy()
+    if vmin is not None:
+        clipped_color = np.maximum(clipped_color, float(vmin))
+    if vmax is not None:
+        clipped_color = np.minimum(clipped_color, float(vmax))
+
     scatter_kwargs = dict(
-        c=color_values[finite],
+        c=clipped_color[finite],
         cmap=colormap,
         s=max(1, point_size),
         linewidths=0,
@@ -341,24 +371,25 @@ def _render_matplotlib3d(
         scatter_kwargs["vmax"] = float(vmax)
 
     ax.scatter(x[finite], y[finite], z[finite], **scatter_kwargs)
-    ax.view_init(elev=elevation, azim=azimuth)
+    ax.view_init(elev=elevation, azim=azimuth, roll=roll)
 
-    # Style axes for dark/light background
-    for pane in (ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane):
-        pane.set_facecolor(bg)
-        pane.set_edgecolor(fg)
-    ax.tick_params(colors=fg)
-    ax.xaxis.label.set_color(fg)
-    ax.yaxis.label.set_color(fg)
-    ax.zaxis.label.set_color(fg)
+    # Fixed axis limits so the view does not change between frames.
+    # Dividing by zoom shrinks the visible range, producing a zoom-in effect.
+    effective_zoom = max(zoom, 1e-3)
+    ax.set_xlim(-x_range / effective_zoom, x_range / effective_zoom)
+    ax.set_ylim(-y_range / effective_zoom, y_range / effective_zoom)
+    ax.set_zlim(-z_range / effective_zoom, z_range / effective_zoom)
+
+    # Hide all axes, ticks, labels and panes
+    ax.set_axis_off()
 
     fig.tight_layout(pad=0)
     fig.canvas.draw()
 
-    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    buf = buf.reshape(height, width, 3)
+    buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    buf = buf.reshape(height, width, 4)
     plt.close(fig)
 
-    # RGB -> BGR
-    bgr = buf[:, :, ::-1].copy()
+    # RGBA -> BGR
+    bgr = buf[:, :, 2::-1].copy()
     return bgr

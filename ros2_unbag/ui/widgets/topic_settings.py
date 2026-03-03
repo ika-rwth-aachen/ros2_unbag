@@ -416,8 +416,7 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         if self.chain_widget:
             cfg["processors"] = self.chain_widget.get_chain()
 
-        if self.routine_args_widget:
-            cfg["routine_args"] = self.routine_args_widget.get_args()
+        cfg["routine_args"] = self.routine_args_widget.get_args() if self.routine_args_widget else {}
 
         return cfg
 

@@ -57,6 +57,18 @@ _PARAM_CHOICES: Dict[str, list] = {
     "bg_color":   ["black", "white"],
 }
 
+# Parameter-specific float spin box configuration: name → (min, max, step, decimals)
+_PARAM_FLOAT_CONFIG: Dict[str, tuple] = {
+    "view_azimuth":   (-180.0, 360.0, 5.0,  1),
+    "view_elevation": (-90.0,  90.0,  5.0,  1),
+    "view_roll":      (-180.0, 180.0, 5.0,  1),
+    "zoom":           (0.01,   100.0, 0.1,  2),
+    "x_range":        (0.1,    1e6,   5.0,  1),
+    "y_range":        (0.1,    1e6,   5.0,  1),
+    "z_range":        (0.1,    1e6,   5.0,  1),
+    "point_size":     (1.0,    50.0,  1.0,  0),
+}
+
 
 class RoutineArgsWidget(QtWidgets.QWidget):
     """
@@ -274,9 +286,15 @@ class RoutineArgsWidget(QtWidgets.QWidget):
         # --- float (and Optional[float]) ---
         if inner is float:
             dsb = QtWidgets.QDoubleSpinBox()
-            dsb.setRange(-1e9, 1e9)
-            dsb.setDecimals(3)
-            dsb.setSingleStep(1.0)
+            if name in _PARAM_FLOAT_CONFIG:
+                f_min, f_max, f_step, f_dec = _PARAM_FLOAT_CONFIG[name]
+                dsb.setRange(f_min, f_max)
+                dsb.setSingleStep(f_step)
+                dsb.setDecimals(f_dec)
+            else:
+                dsb.setRange(-1e9, 1e9)
+                dsb.setDecimals(3)
+                dsb.setSingleStep(1.0)
             auto_check = None
             if is_optional or default is None:
                 dsb.setValue(0.0)
