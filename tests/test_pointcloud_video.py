@@ -166,13 +166,13 @@ class TestExtractField:
 class TestApplyColormap:
     def test_output_shape(self):
         values = np.linspace(0.0, 1.0, 10, dtype=np.float32)
-        bgr = apply_colormap(values, "jet")
+        bgr = apply_colormap(values, "viridis")
         assert bgr.shape == (10, 3)
         assert bgr.dtype == np.uint8
 
     def test_range_clipping(self):
         values = np.array([0.0, 5.0, 10.0], dtype=np.float32)
-        bgr_full = apply_colormap(values, "jet", vmin=0.0, vmax=10.0)
+        bgr_full = apply_colormap(values, "viridis", vmin=0.0, vmax=10.0)
         assert bgr_full.shape == (3, 3)
 
     def test_all_colormaps_run(self):
@@ -265,7 +265,7 @@ class TestRoutineGetArgs:
             "sensor_msgs/msg/PointCloud2", "pointcloud/video_mp4"
         )
         param_colormap, _ = args["colormap"]
-        assert param_colormap.default == "jet"
+        assert param_colormap.default == "viridis"
         param_w, _ = args["width"]
         assert param_w.default == 1280
 
