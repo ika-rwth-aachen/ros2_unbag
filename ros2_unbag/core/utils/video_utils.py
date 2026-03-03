@@ -106,3 +106,4 @@ def finalize_video(ps: dict, path: Path, fmt: str):
         del ps["writer"]
     ps.pop("first_ts_ns", None)
     ps.pop("buffer", None)
+    ps.pop("frame_size", None)

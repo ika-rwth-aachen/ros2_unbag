@@ -75,11 +75,11 @@ class ExportRoutine:
         """
         storage = defaultdict(dict)  # Define a persistent storage for each topic
 
-        def wrapper(msg, path, fmt, metadata, topic=None, routine_args=None):
-            wrapper.persistent_storage = storage[topic] if topic else {}
+        def wrapper(msg, path, fmt, metadata, topic=None, routine_args=None, **kwargs):
+            wrapper.persistent_storage = storage[topic]
             canonical_fmt, _ = ExportRoutine._split_format(fmt)
-            kwargs = routine_args or {}
-            return func(msg, path, canonical_fmt, metadata, **kwargs)
+            merged = {**(routine_args or {}), **kwargs}
+            return func(msg, path, canonical_fmt, metadata, **merged)
 
         wrapper.persistent_storage = {}  # Initialize persistent storage
         self.func = wrapper
