@@ -148,6 +148,7 @@ class Exporter:
                 "mode": mode,
                 "sequential": (mode == ExportMode.SINGLE_FILE),
                 "topic_base": topic.strip("/").replace("/", "_"),
+                "routine_args": cfg.get("routine_args") or {},
                 "name_tmpl": name_tmpl,
                 "path_tmpl": path_tmpl,
                 "sub_tmpl":  sub_tmpl,
@@ -655,7 +656,8 @@ class Exporter:
                 # Use pre-fetched export handler
                 export_handler = self.topic_handlers[topic]
                 if export_handler:
-                    export_handler(msg, full_path, fmt, metadata, topic=topic)
+                    routine_args = self._topic_cache[topic]["routine_args"]
+                    export_handler(msg, full_path, fmt, metadata, topic=topic, routine_args=routine_args)
                     progress_queue.put(1)
 
             except Exception as e:

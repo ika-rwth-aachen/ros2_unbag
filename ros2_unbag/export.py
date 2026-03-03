@@ -75,6 +75,13 @@ class ExportCommand(CommandExtension):
             "--cpu-percentage", type=float, default=80.0,
             help="CPU usage for parallel processing")
         parser.add_argument(
+            "--routine-args", action="append", default=None,
+            help=(
+                "Extra arguments for a format-specific routine: /topic:arg=value[,arg2=value2]. "
+                "Can be repeated for different topics. "
+                "Example: --routine-args '/lidar:color_field=intensity,colormap=turbo,width=1920'"
+            ))
+        parser.add_argument(
             "--config", type=str,
             help="Path to config JSON (overrides other args)")
         parser.add_argument(
@@ -306,6 +313,24 @@ class ExportCommand(CommandExtension):
                         processor_args[k.strip()] = v.strip()
                     processor_entry["args"] = processor_args
                 config[topic].setdefault("processors", []).append(processor_entry)
+
+        if args.routine_args:
+            for spec in args.routine_args:
+                if ":" not in spec:
+                    sys.exit(f"Invalid --routine-args (missing ':'): {spec}")
+                topic, _, arg_str = spec.partition(":")
+                if topic not in config:
+                    sys.exit(f"--routine-args topic '{topic}' not found in --export specs.")
+                routine_args = {}
+                for kv in arg_str.split(","):
+                    kv = kv.strip()
+                    if not kv:
+                        continue
+                    if "=" not in kv:
+                        sys.exit(f"Invalid --routine-args entry (expected key=value): '{kv}'")
+                    k, v = kv.split("=", 1)
+                    routine_args[k.strip()] = v.strip()
+                config[topic]["routine_args"] = routine_args
 
         return config
     

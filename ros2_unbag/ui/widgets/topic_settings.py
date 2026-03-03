@@ -43,6 +43,7 @@ from ros2_unbag.ui.styles import (
 from ros2_unbag.core.processors import Processor
 from ros2_unbag.core.routines import ExportRoutine, ExportMode
 from .processor_chain import ProcessorChainWidget
+from .routine_args import RoutineArgsWidget
 
 __all__ = ["TopicSettingsWidget"]
 
@@ -170,6 +171,18 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         format_layout.setStretch(0, 1)
         format_layout.setStretch(1, 1)
         self.form_layout.addRow("Format", format_row)
+
+        # Format Options (routine-specific parameters, shown only when the
+        # selected routine declares extra keyword arguments)
+        self.routine_args_container = QtWidgets.QWidget()
+        self.routine_args_layout = QtWidgets.QVBoxLayout(self.routine_args_container)
+        self.routine_args_layout.setContentsMargins(0, 0, 0, 0)
+        self.routine_args_layout.setSpacing(0)
+        self.routine_args_row_label = QtWidgets.QLabel("Format Options")
+        self.form_layout.addRow(self.routine_args_row_label, self.routine_args_container)
+        self.routine_args_row_label.setVisible(False)
+        self.routine_args_container.setVisible(False)
+        self.routine_args_widget = None
 
         # Output Directory
         self.path_edit = QtWidgets.QLineEdit()
@@ -320,6 +333,11 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         # 2. Update Mode options based on format
         self._refresh_mode_controls(self.fmt_combo.currentText())
 
+        # 2b. Rebuild routine args widget for the current format
+        self._rebuild_routine_args(self.fmt_combo.currentText())
+        if self.routine_args_widget and config.get("routine_args"):
+            self.routine_args_widget.set_args(config["routine_args"])
+
         # 3. Set other fields
         self.path_edit.setText(config.get("path", str(self.default_folder)))
         subdir_value = config.get("subfolder", "%name")
@@ -397,7 +415,10 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         
         if self.chain_widget:
             cfg["processors"] = self.chain_widget.get_chain()
-            
+
+        if self.routine_args_widget:
+            cfg["routine_args"] = self.routine_args_widget.get_args()
+
         return cfg
 
     def set_export_state(self, checked: bool):
@@ -451,7 +472,45 @@ class TopicSettingsWidget(QtWidgets.QWidget):
             None
         """
         self._refresh_mode_controls(text)
+        self._rebuild_routine_args(text)
         self._emit_change()
+
+    def _rebuild_routine_args(self, fmt: str) -> None:
+        """
+        Rebuild the RoutineArgsWidget for the currently selected format.
+
+        Clears any existing widget, queries ExportRoutine.get_args() for the
+        new format and, if extra arguments are declared, creates a new
+        RoutineArgsWidget and adds it to the form.
+
+        Args:
+            fmt (str): The newly selected export format string.
+
+        Returns:
+            None
+        """
+        # Remove the old widget
+        while self.routine_args_layout.count():
+            item = self.routine_args_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.routine_args_widget = None
+
+        if not self.current_type:
+            self.routine_args_row_label.setVisible(False)
+            self.routine_args_container.setVisible(False)
+            return
+
+        extra_args = ExportRoutine.get_args(self.current_type, fmt)
+        if extra_args:
+            self.routine_args_widget = RoutineArgsWidget(self.current_type, fmt)
+            self.routine_args_widget.args_changed.connect(self._emit_change)
+            self.routine_args_layout.addWidget(self.routine_args_widget)
+            self.routine_args_row_label.setVisible(True)
+            self.routine_args_container.setVisible(True)
+        else:
+            self.routine_args_row_label.setVisible(False)
+            self.routine_args_container.setVisible(False)
 
     def _on_mode_changed(self, idx):
         """
