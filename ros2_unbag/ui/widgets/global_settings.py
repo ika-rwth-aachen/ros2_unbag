@@ -48,6 +48,7 @@ class GlobalSettingsWidget(QtWidgets.QWidget):
     
     This widget provides controls for:
     - CPU usage limit configuration (percentage slider)
+    - Error handling strategy (fail-fast vs continue-on-error)
     - Global resampling settings (master topic, association strategy, epsilon)
     - Base output directory selection
     - Export summary showing selected topic count
@@ -137,6 +138,12 @@ class GlobalSettingsWidget(QtWidgets.QWidget):
         cpu_label = QtWidgets.QLabel("CPU Usage %")
         cpu_label.setToolTip("Set the maximum CPU percentage allowed for export workers.")
         form_layout.addRow(cpu_label, cpu_layout)
+
+        self.continue_on_error_check = QtWidgets.QCheckBox("Continue on error")
+        self.continue_on_error_check.setToolTip(
+            "If enabled, item-level processor/routine failures are logged and skipped instead of aborting the export."
+        )
+        form_layout.addRow("Error Handling", self.continue_on_error_check)
 
         # Resampling
         self.assoc_combo = QtWidgets.QComboBox()
@@ -430,11 +437,13 @@ class GlobalSettingsWidget(QtWidgets.QWidget):
             None
 
         Returns:
-            dict: Configuration dictionary with keys 'cpu_percentage' and optionally
-                 'resample_config' (if resampling is enabled).
+            dict: Configuration dictionary with keys 'cpu_percentage',
+                 'continue_on_error', and optionally 'resample_config'
+                 (if resampling is enabled).
         """
         cfg = {
-            "cpu_percentage": float(self.cpu_spin.value())
+            "cpu_percentage": float(self.cpu_spin.value()),
+            "continue_on_error": self.continue_on_error_check.isChecked(),
         }
         assoc = self.assoc_combo.currentText()
         if assoc != "no resampling":
@@ -462,8 +471,8 @@ class GlobalSettingsWidget(QtWidgets.QWidget):
         Restores CPU usage and resampling settings from a previously saved configuration.
 
         Args:
-            config: Configuration dictionary with keys 'cpu_percentage' and optionally
-                   'resample_config'.
+            config: Configuration dictionary with keys 'cpu_percentage',
+                   'continue_on_error', and optionally 'resample_config'.
 
         Returns:
             None
@@ -482,6 +491,8 @@ class GlobalSettingsWidget(QtWidgets.QWidget):
             self.cpu_slider.blockSignals(True)
             self.cpu_slider.setValue(int(round(cpu_value)))
             self.cpu_slider.blockSignals(False)
+
+        self.continue_on_error_check.setChecked(bool(config.get("continue_on_error", False)))
         
         rcfg = config.get("resample_config")
         if isinstance(rcfg, dict):

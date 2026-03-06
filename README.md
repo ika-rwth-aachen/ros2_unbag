@@ -147,7 +147,8 @@ In addition to these required flags, there are some optional flags. See the tabl
 | **`--resample`**            | `/master:association[,discard_eps]`.     | Time‑align to master topic. `association` = `last` or `nearest`; `nearest` needs a numeric `discard_eps`.                         | Optional                           | –              |
 | **`-p, --processing`**      | `/topic:processor[:arg=value,…]`         | Pre‑export processor spec; repeat to build ordered chains (executed in the order provided).                                       | Optional                           | –              |
 | **`--cpu-percentage`**      | `<float>`                                | % of cores for parallel export (0–100). Use `0` for single‑threaded.                                                              | Optional                           | `80.0`         |
-| **`--config`**              | `<config.json>`                          | JSON config file path. Overrides all other args (except `bag`).                                                                   | Optional                           | –              |
+| **`--continue-on-error`**   | (flag)                                   | Continue export when a processor/routine fails on an item. Logs error and skips that item instead of aborting.                    | Optional                           | `false`        |
+| **`--config`**              | `<config.json>`                          | JSON config file path used as base configuration. Explicitly provided CLI flags override corresponding config fields.             | Optional                           | –              |
 | **`--gui`**                 | (flag)                                   | Launch Qt GUI. If no `bag`/`--export`/`--config`, GUI is auto‑started.                                                            | Optional                           | `false`        |
 | **`--use-routine`**         | `<file.py>`                              | Load a routine for this run only (no install).                                                                                    | Optional                           | –              |
 | **`--use-processor`**       | `<file.py>`                              | Load a processor for this run only (no install).                                                                                  | Optional                           | –              |
@@ -163,7 +164,7 @@ ros2 unbag rosbag/rosbag.mcap
     --output-dir /docker-ros/ws/example/ --export /lidar/point_cloud:pointcloud/pcd:lidar --export /radar/point_cloud:pointcloud/pcd:radar --resample /lidar/point_cloud:last,0.2
 ```
 
-⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file. The `<path_to_rosbag>` is always required in CLI use.
+⚠️ If you specify the `--config` option (e.g., `--config configs/my_config.json`), the tool loads that file as the base configuration. Any CLI flags you explicitly provide then override matching fields (for example, `--cpu-percentage`, `--output-dir`, `--naming`, `--resample`, `--processing`, `--export`, `--continue-on-error`). The `<path_to_rosbag>` is always required in CLI use.
 
 ## Documentation
 

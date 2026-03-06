@@ -851,21 +851,37 @@ class UnbagApp(QtWidgets.QMainWindow):
             Q_ARG(bool, True)
         )
         self.current_exporter.run()
+        return {
+            "failed_item_count": self.current_exporter.failed_item_count,
+            "continue_on_error": bool(global_config.get("continue_on_error", False)),
+        }
 
-    def on_export_finished(self, _):
+    def on_export_finished(self, result):
         """
         Handle successful export completion: close dialog, re-enable UI, show success message.
 
         Args:
-            _: Unused result from worker thread.
+            result: Optional result dict returned by the worker thread.
 
         Returns:
             None
         """
         self.current_exporter = None
-        self._hide_status_progress("Export complete")
+        result = result if isinstance(result, dict) else {}
+        failed_item_count = int(result.get("failed_item_count", 0))
+
+        if failed_item_count > 0:
+            self._hide_status_progress("Export complete with warnings")
+        else:
+            self._hide_status_progress("Export complete")
         self._set_export_running(False)
-        self.global_settings.show_feedback("Export complete.")
+        if failed_item_count > 0:
+            self.global_settings.show_feedback(
+                f"Export complete with {failed_item_count} skipped item(s).",
+                feedback_type="cancel",
+            )
+        else:
+            self.global_settings.show_feedback("Export complete.")
 
     def handle_export_error(self, e):
         """

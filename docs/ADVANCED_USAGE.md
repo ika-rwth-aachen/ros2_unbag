@@ -50,6 +50,7 @@ Here's an example configuration file:
   },
   "__global__": {
     "cpu_percentage": 85.0,
+    "continue_on_error": false,
     "resample_config": {
       "master_topic": "/drivers/lidar_fl/pointcloud",
       "association": "nearest",
@@ -70,6 +71,7 @@ Here's an example configuration file:
 
 **Global settings (`__global__`):**
 - `cpu_percentage`: Percentage of CPU cores to use (0-100)
+- `continue_on_error`: If `true`, item-level processor/routine errors are logged and skipped; if `false`, export aborts on first such error
 - `resample_config`: Resampling configuration (see [Resampling](#resampling) section)
 
 ### Using Configuration Files
@@ -81,7 +83,7 @@ ros2 unbag <path_to_rosbag> --config <config.json>
 ```
 
 > [!IMPORTANT]
-> If you specify the `--config` option, the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file.
+> If you specify the `--config` option, the tool will load all export settings from the given JSON configuration file as the baseline. Any CLI flags you explicitly provide then override matching fields. The `<path_to_rosbag>` positional argument is still required in CLI mode.
 
 ## Resampling
 

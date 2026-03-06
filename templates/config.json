@@ -33,6 +33,7 @@
   },
   "__global__": {
     "cpu_percentage": 85.0,
+    "continue_on_error": false,
     "resample_config": {
       "master_topic": "/drivers/lidar_fl/pointcloud",
       "association": "nearest",

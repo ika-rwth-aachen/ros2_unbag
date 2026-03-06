@@ -56,6 +56,8 @@ class Exporter:
         self.global_config = global_config
         self.topic_types = self.bag_reader.topic_types
         self.progress_callback = progress_callback
+        self.continue_on_error = bool(self.global_config.get("continue_on_error", False))
+        self.failed_items = mp.Value("i", 0)
 
         # Create a queue for worker exceptions to communicate back to the main process
         self.exception_queue = mp.Queue()
@@ -239,6 +241,12 @@ class Exporter:
 
         progress_queue.put(None)
         monitor.join()
+
+        if self.continue_on_error and self.failed_item_count > 0:
+            self.logger.warning(
+                "Export finished with %d skipped item(s) due to processing/export errors.",
+                self.failed_item_count,
+            )
 
 
     def abort_export(self):
@@ -660,6 +668,18 @@ class Exporter:
 
             except Exception as e:
                 # Handle exceptions during export
+                if self.continue_on_error:
+                    with self.failed_items.get_lock():
+                        self.failed_items.value += 1
+                    self.logger.exception(
+                        "Skipping failed item for topic '%s' (output: %s): %s",
+                        topic if "topic" in locals() else "<unknown>",
+                        str(full_path) if "full_path" in locals() else "<unknown>",
+                        e,
+                    )
+                    progress_queue.put(1)
+                    continue
+
                 self.exception_queue.put((type(e).__name__, str(e)))
                 break
 
@@ -766,3 +786,16 @@ class Exporter:
         cfg.pop("processor_args", None)
 
         return normalized
+
+    @property
+    def failed_item_count(self) -> int:
+        """
+        Return the number of items skipped due to worker-level processing/export errors.
+
+        Args:
+            None
+
+        Returns:
+            int: Number of failed items encountered by workers.
+        """
+        return int(self.failed_items.value)
