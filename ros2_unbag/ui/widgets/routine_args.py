@@ -53,8 +53,7 @@ _PARAM_CHOICES: Dict[str, list] = {
         "viridis", "jet", "plasma", "inferno", "turbo",
         "magma", "rainbow", "hot", "coolwarm", "hsv",
     ],
-    "projection": ["topdown", "front", "side", "matplotlib3d"],
-    "bg_color":   ["black", "white"],
+    "bg_color": ["black", "white"],
 }
 
 # Parameter-specific float spin box configuration: name → (min, max, step, decimals)
@@ -91,6 +90,9 @@ class RoutineArgsWidget(QtWidgets.QWidget):
     """
 
     args_changed = QtCore.Signal()
+
+    #: Emitted when the user clicks the "Preview Camera" button (pointcloud video only).
+    preview_camera_requested = QtCore.Signal()
 
     def __init__(self, topic_type: str, fmt: str, parent=None):
         """
@@ -234,6 +236,18 @@ class RoutineArgsWidget(QtWidgets.QWidget):
                 self._form.addRow(label, container)
             else:
                 self._form.addRow(label, row_widget)
+
+        # For pointcloud video formats add a "Preview Camera" button so the user
+        # can interactively set azimuth / elevation / roll / zoom on the first frame.
+        if "pointcloud/video" in self.fmt:
+            self._preview_btn = QtWidgets.QPushButton("Preview Camera")
+            self._preview_btn.setToolTip(
+                "Open the first point cloud frame as an interactive 3-D scatter plot.\n"
+                "Rotate / zoom the view, then click \u2018Apply to Settings\u2019 to copy\n"
+                "the camera parameters (azimuth, elevation, roll, zoom) into the form."
+            )
+            self._preview_btn.clicked.connect(self.preview_camera_requested)
+            self._form.addRow("", self._preview_btn)
 
     def _make_input(
         self, name: str, param: inspect.Parameter, doc: str

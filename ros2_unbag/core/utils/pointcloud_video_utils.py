@@ -27,8 +27,6 @@ Provides helpers for extracting point data from PointCloud2 messages and
 rendering them into BGR image frames suitable for video export.
 """
 
-import struct
-
 import cv2
 import numpy as np
 
@@ -46,14 +44,34 @@ _FIELD_TYPE_MAP = {
     PointField.FLOAT64: ("d", np.float64, 8),
 }
 
+# Per-colormap BGR lookup table cache: computed once, reused for every frame
+_COLORMAP_LUT_CACHE: dict = {}
+
+
+def _get_colormap_lut(cmap_name: str) -> np.ndarray:
+    """Return a cached (256, 3) uint8 BGR LUT for *cmap_name*.
+
+    The LUT is built on the first call for each colormap name and stored in
+    ``_COLORMAP_LUT_CACHE`` so that subsequent frames pay no matplotlib overhead.
+    """
+    if cmap_name not in _COLORMAP_LUT_CACHE:
+        import matplotlib.cm as cm
+        try:
+            cmap = cm.colormaps[cmap_name]       # matplotlib >= 3.7
+        except AttributeError:
+            cmap = cm.get_cmap(cmap_name)        # matplotlib < 3.7
+        indices = np.linspace(0.0, 1.0, 256)
+        rgba = cmap(indices)                          # (256, 4) float64
+        rgb = (rgba[:, :3] * 255).astype(np.uint8)    # (256, 3) uint8
+        _COLORMAP_LUT_CACHE[cmap_name] = rgb[:, ::-1].copy()  # RGB -> BGR
+    return _COLORMAP_LUT_CACHE[cmap_name]
+
+
 # Colormaps available in the GUI combo box (must be valid matplotlib cmap names)
 AVAILABLE_COLORMAPS = [
     "viridis", "jet", "plasma", "inferno", "turbo",
     "magma", "rainbow", "hot", "coolwarm", "hsv",
 ]
-
-# Projection modes available in the GUI combo box
-AVAILABLE_PROJECTIONS = ["topdown", "front", "side", "matplotlib3d"]
 
 
 def extract_field(msg, field_name: str) -> np.ndarray:
@@ -82,17 +100,19 @@ def extract_field(msg, field_name: str) -> np.ndarray:
     if type_info is None:
         raise ValueError(f"Unsupported PointField datatype: {field.datatype}")
 
-    fmt_char, np_dtype, _ = type_info
-    endian = ">" if msg.is_bigendian else "<"
-    full_fmt = endian + fmt_char
+    _fmt_char, np_dtype, byte_size = type_info
+    endian_char = ">" if msg.is_bigendian else "<"
     offset = field.offset
     step = msg.point_step
-    data = msg.data
+    n_points = msg.width * msg.height
 
-    values = np.empty(msg.width * msg.height, dtype=np.float32)
-    for i in range(len(values)):
-        raw = struct.unpack_from(full_fmt, data, i * step + offset)[0]
-        values[i] = float(raw)
+    # Vectorised extraction: build a (n_points, byte_size) uint8 view, then
+    # reinterpret as the target dtype in one shot — no Python loop required.
+    raw_data = np.frombuffer(bytes(msg.data), dtype=np.uint8)
+    point_starts = np.arange(n_points, dtype=np.int64) * step + offset
+    byte_idx = point_starts[:, None] + np.arange(byte_size, dtype=np.int64)[None, :]
+    target_dtype = np.dtype(np_dtype).newbyteorder(endian_char)
+    values = raw_data[byte_idx].reshape(-1).view(target_dtype).astype(np.float32)
 
     return values
 
@@ -130,25 +150,20 @@ def apply_colormap(values: np.ndarray, cmap_name: str, vmin=None, vmax=None) -> 
     Returns:
         numpy.ndarray: Shape (N, 3) uint8 array of BGR colours.
     """
-    import matplotlib.cm as cm
-    import matplotlib.colors as mcolors
-
     finite = values[np.isfinite(values)]
     lo = float(vmin) if vmin is not None else (float(finite.min()) if len(finite) else 0.0)
     hi = float(vmax) if vmax is not None else (float(finite.max()) if len(finite) else 1.0)
     if hi == lo:
         hi = lo + 1.0
 
-    # Explicitly clip: values below lo → lo, values above hi → hi
+    # Map values to [0, 255] LUT indices using the cached BGR LUT.
+    # NaN inputs are suppressed and clamped to index 0 (lowest colour).
+    lut = _get_colormap_lut(cmap_name)
     clipped = np.clip(values, lo, hi)
-
-    norm = mcolors.Normalize(vmin=lo, vmax=hi, clip=False)
-    cmap = cm.get_cmap(cmap_name)
-    # rgba float [0,1] -> uint8 RGB, then swap to BGR
-    rgba = cmap(norm(clipped))  # (N, 4) float
-    rgb = (rgba[:, :3] * 255).astype(np.uint8)
-    bgr = rgb[:, ::-1].copy()  # RGB -> BGR
-    return bgr
+    with np.errstate(invalid="ignore"):
+        idx = ((clipped - lo) / (hi - lo) * 255.0).astype(np.int32)
+    idx = np.clip(idx, 0, 255)
+    return lut[idx]
 
 
 def render_frame(
@@ -160,7 +175,6 @@ def render_frame(
     point_size: int = 2,
     range_min=None,
     range_max=None,
-    projection: str = "topdown",
     x_range: float = 50.0,
     y_range: float = 50.0,
     z_range: float = 10.0,
@@ -171,7 +185,7 @@ def render_frame(
     bg_color: str = "black",
 ) -> np.ndarray:
     """
-    Render a PointCloud2 message into a BGR image frame.
+    Render a PointCloud2 message into a BGR image frame using a 3-D matplotlib scatter plot.
 
     Args:
         msg: PointCloud2 ROS message instance.
@@ -182,14 +196,13 @@ def render_frame(
         point_size (int): Rendered point radius in pixels.
         range_min (float or None): Lower clip bound for color_field values; values below this are clipped to this colour (auto-detect per frame when None).
         range_max (float or None): Upper clip bound for color_field values; values above this are clipped to this colour (auto-detect per frame when None).
-        projection (str): View mode: "topdown", "front", "side", or "matplotlib3d".
         x_range (float): Half-width of the visible scene in metres (x-axis).
         y_range (float): Half-height of the visible scene in metres (y-axis).
-        z_range (float): Half-depth of the visible scene in metres (z-axis, matplotlib3d only).
-        view_azimuth (float): Camera azimuth in degrees (matplotlib3d only).
-        view_elevation (float): Camera elevation in degrees (matplotlib3d only).
-        view_roll (float): Camera roll in degrees (matplotlib3d only).
-        zoom (float): Zoom factor; > 1 zooms in, < 1 zooms out (matplotlib3d only).
+        z_range (float): Half-depth of the visible scene in metres (z-axis).
+        view_azimuth (float): Camera azimuth in degrees.
+        view_elevation (float): Camera elevation in degrees.
+        view_roll (float): Camera roll in degrees.
+        zoom (float): Zoom factor; > 1 zooms in, < 1 zooms out.
         bg_color (str): Background colour, "black" or "white".
 
     Returns:
@@ -197,92 +210,13 @@ def render_frame(
     """
     x, y, z = extract_xyz(msg)
     color_values = extract_field(msg, color_field)
-    bgr_colors = apply_colormap(color_values, colormap, range_min, range_max)
 
-    if projection == "matplotlib3d":
-        return _render_matplotlib3d(
-            x, y, z, color_values, colormap, width, height,
-            point_size, range_min, range_max, view_azimuth, view_elevation,
-            view_roll, zoom, bg_color, x_range, y_range, z_range,
-        )
-
-    # Select which axes to project for each orthographic mode
-    if projection == "topdown":
-        horiz, vert = x, y
-        h_range, v_range = x_range, y_range
-        h_label, v_label = "X", "Y"
-    elif projection == "front":
-        horiz, vert = x, z
-        h_range, v_range = x_range, y_range
-        h_label, v_label = "X", "Z"
-    elif projection == "side":
-        horiz, vert = y, z
-        h_range, v_range = x_range, y_range
-        h_label, v_label = "Y", "Z"
-    else:
-        raise ValueError(
-            f"Unknown projection '{projection}'. "
-            f"Choose from: {AVAILABLE_PROJECTIONS}"
-        )
-
-    return _render_ortho(
-        horiz, vert, bgr_colors, width, height,
-        h_range, v_range, point_size, bg_color,
+    return _render_matplotlib3d(
+        x, y, z, color_values, colormap, width, height,
+        point_size, range_min, range_max, view_azimuth, view_elevation,
+        view_roll, zoom, bg_color, x_range, y_range, z_range,
     )
 
-
-def _render_ortho(
-    horiz: np.ndarray,
-    vert: np.ndarray,
-    bgr_colors: np.ndarray,
-    width: int,
-    height: int,
-    h_range: float,
-    v_range: float,
-    point_size: int,
-    bg_color: str,
-) -> np.ndarray:
-    """
-    Render an orthographic (bird's-eye / front / side) projection to a BGR image.
-
-    Args:
-        horiz (numpy.ndarray): Horizontal axis values (one per point).
-        vert (numpy.ndarray): Vertical axis values (one per point).
-        bgr_colors (numpy.ndarray): (N, 3) uint8 BGR colour per point.
-        width (int): Frame width in pixels.
-        height (int): Frame height in pixels.
-        h_range (float): Half-width of visible range in metres.
-        v_range (float): Half-height of visible range in metres.
-        point_size (int): Point radius in pixels.
-        bg_color (str): "black" or "white".
-
-    Returns:
-        numpy.ndarray: H×W×3 BGR uint8 image.
-    """
-    bg = (0, 0, 0) if bg_color == "black" else (255, 255, 255)
-    img = np.full((height, width, 3), bg, dtype=np.uint8)
-
-    # Pixel coordinates: centre of image = (0, 0) in scene space
-    px = ((horiz / h_range + 1.0) * 0.5 * width).astype(np.int32)
-    py = ((-vert / v_range + 1.0) * 0.5 * height).astype(np.int32)
-
-    # Filter to visible region
-    mask = (px >= 0) & (px < width) & (py >= 0) & (py < height)
-    mask &= np.isfinite(horiz) & np.isfinite(vert)
-
-    px_v = px[mask]
-    py_v = py[mask]
-    colors_v = bgr_colors[mask]
-
-    if point_size <= 1:
-        img[py_v, px_v] = colors_v
-    else:
-        r = max(1, point_size // 2)
-        for i in range(len(px_v)):
-            color = (int(colors_v[i, 0]), int(colors_v[i, 1]), int(colors_v[i, 2]))
-            cv2.circle(img, (int(px_v[i]), int(py_v[i])), r, color, -1, cv2.LINE_AA)
-
-    return img
 
 
 def _render_matplotlib3d(
@@ -333,9 +267,11 @@ def _render_matplotlib3d(
     Returns:
         numpy.ndarray: H×W×3 BGR uint8 image.
     """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    # Use the Agg canvas explicitly so we never touch the global backend
+    # registry (which would conflict with the interactive Qt canvas used by
+    # CameraPreviewDialog when the GUI is running).
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure as MplFigure
     from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
     dpi = 100
@@ -344,7 +280,8 @@ def _render_matplotlib3d(
 
     bg = "black" if bg_color == "black" else "white"
 
-    fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
+    fig = MplFigure(figsize=(fig_w, fig_h), dpi=dpi)
+    FigureCanvasAgg(fig)  # attach Agg raster backend
     fig.patch.set_facecolor(bg)
     ax = fig.add_subplot(111, projection="3d")
     ax.set_facecolor(bg)
@@ -388,7 +325,6 @@ def _render_matplotlib3d(
 
     buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
     buf = buf.reshape(height, width, 4)
-    plt.close(fig)
 
     # RGBA -> BGR
     bgr = buf[:, :, 2::-1].copy()

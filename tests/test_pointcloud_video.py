@@ -41,8 +41,8 @@ from ros2_unbag.core.utils.pointcloud_video_utils import (
     apply_colormap,
     render_frame,
     AVAILABLE_COLORMAPS,
-    AVAILABLE_PROJECTIONS,
 )
+
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ class TestApplyColormap:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: render_frame (orthographic)
+# Unit tests: render_frame (matplotlib3d)
 # ---------------------------------------------------------------------------
 
 class TestRenderFrame:
@@ -192,42 +192,34 @@ class TestRenderFrame:
                for i in range(100)]
         return _make_pc2(pts)
 
-    def test_output_shape_topdown(self):
+    def test_output_shape(self):
         msg = self._simple_msg()
-        img = render_frame(msg, projection="topdown", width=320, height=240)
+        img = render_frame(msg, width=320, height=240)
         assert img.shape == (240, 320, 3)
         assert img.dtype == np.uint8
 
-    def test_output_shape_front(self):
-        msg = self._simple_msg()
-        img = render_frame(msg, projection="front", width=320, height=240)
-        assert img.shape == (240, 320, 3)
-
-    def test_output_shape_side(self):
-        msg = self._simple_msg()
-        img = render_frame(msg, projection="side", width=320, height=240)
-        assert img.shape == (240, 320, 3)
-
     def test_black_background(self):
-        # Background pixels should be (0,0,0) for bg_color="black"
-        pts = [{"x": 1000.0, "y": 1000.0, "z": 1000.0, "intensity": 0.0}]
-        msg = _make_pc2(pts)
-        img = render_frame(msg, projection="topdown", width=64, height=64,
-                           bg_color="black", x_range=1.0, y_range=1.0)
-        # All points are out of range, so entire frame should be black
-        assert np.all(img == 0)
+        msg = self._simple_msg()
+        img = render_frame(msg, width=64, height=64, bg_color="black")
+        assert img.dtype == np.uint8
+        assert img.shape == (64, 64, 3)
+        # The matplotlib canvas should be predominantly black
+        assert img[0, 0].tolist() == [0, 0, 0]
 
     def test_white_background(self):
-        pts = [{"x": 1000.0, "y": 1000.0, "z": 1000.0, "intensity": 0.0}]
-        msg = _make_pc2(pts)
-        img = render_frame(msg, projection="topdown", width=64, height=64,
-                           bg_color="white", x_range=1.0, y_range=1.0)
-        assert np.all(img == 255)
-
-    def test_invalid_projection(self):
         msg = self._simple_msg()
-        with pytest.raises(ValueError, match="projection"):
-            render_frame(msg, projection="invalid")
+        img = render_frame(msg, width=64, height=64, bg_color="white")
+        assert img.dtype == np.uint8
+        assert img.shape == (64, 64, 3)
+        # The matplotlib canvas corners should be white
+        assert img[0, 0].tolist() == [255, 255, 255]
+
+    def test_view_angle_changes_output(self):
+        """Different azimuth values should produce different images."""
+        msg = self._simple_msg()
+        img_a = render_frame(msg, width=128, height=96, view_azimuth=0.0)
+        img_b = render_frame(msg, width=128, height=96, view_azimuth=90.0)
+        assert not np.array_equal(img_a, img_b)
 
 
 # ---------------------------------------------------------------------------
@@ -247,10 +239,17 @@ class TestRoutineGetArgs:
         )
         for expected in (
             "color_field", "colormap", "width", "height", "point_size",
-            "range_min", "range_max", "projection",
-            "x_range", "y_range", "view_azimuth", "view_elevation", "bg_color",
+            "range_min", "range_max",
+            "x_range", "y_range", "z_range",
+            "view_azimuth", "view_elevation", "view_roll", "zoom", "bg_color",
         ):
             assert expected in args, f"Missing parameter: {expected}"
+
+    def test_projection_not_exposed(self):
+        args = ExportRoutine.get_args(
+            "sensor_msgs/msg/PointCloud2", "pointcloud/video_mp4"
+        )
+        assert "projection" not in args, "projection should no longer be an exposed parameter"
 
     def test_fixed_args_not_exposed(self):
         args = ExportRoutine.get_args(
@@ -289,7 +288,7 @@ class TestExportPointcloudVideoIntegration:
         export_pointcloud_video(
             msg, out_path, "pointcloud/video_mp4", metadata,
             width=320, height=240, point_size=2,
-            projection="topdown", x_range=15.0, y_range=15.0,
+            x_range=15.0, y_range=15.0,
         )
 
         result = tmp_path / "test_pc_video.mp4"
@@ -320,7 +319,7 @@ class TestExportPointcloudVideoIntegration:
             export_pointcloud_video(
                 msg, out_path, "pointcloud/video_mp4", metadata,
                 width=160, height=120, color_field="z",
-                colormap="viridis", projection="topdown",
+                colormap="viridis",
             )
 
         result = tmp_path / "multi_frame.mp4"

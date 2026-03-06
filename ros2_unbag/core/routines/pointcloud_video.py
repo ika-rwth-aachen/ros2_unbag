@@ -26,8 +26,7 @@ PointCloud Video Export Routine.
 Renders each PointCloud2 frame into a colourised image and encodes all frames
 into a single MP4 or AVI video file.  Colour is driven by any scalar field
 present in the cloud (e.g. z-height, intensity, ring id) and a matplotlib
-colormap.  Multiple orthographic projections (top-down, front, side) and a
-full 3-D matplotlib scatter view are supported.
+colormap. 
 """
 
 from pathlib import Path
@@ -56,7 +55,6 @@ def export_pointcloud_video(
     point_size: int = 2,
     range_min: Optional[float] = None,
     range_max: Optional[float] = None,
-    projection: str = "topdown",
     x_range: float = 50.0,
     y_range: float = 50.0,
     z_range: float = 10.0,
@@ -70,7 +68,7 @@ def export_pointcloud_video(
     Export a sequence of PointCloud2 messages as a colourised video.
 
     Each message is rendered into a BGR image frame according to the chosen
-    projection and colormap, then encoded into a video file via OpenCV.
+    colormap, then encoded into a video file via OpenCV.
 
     Args:
         msg: PointCloud2 ROS message instance.
@@ -84,7 +82,6 @@ def export_pointcloud_video(
         point_size (int): Rendered point radius in pixels.
         range_min (float or None): Lower clip bound for color_field values. Values below this receive the colormap's lowest colour. Auto-detected per frame when None.
         range_max (float or None): Upper clip bound for color_field values. Values above this receive the colormap's highest colour. Auto-detected per frame when None.
-        projection (str): View mode: "topdown", "front", "side", or "matplotlib3d".
         x_range (float): Half-width of the visible scene in metres (x-axis).
         y_range (float): Half-height of the visible scene in metres (y-axis).
         z_range (float): Half-depth of the visible scene in metres (z-axis, matplotlib3d only).
@@ -130,7 +127,6 @@ def export_pointcloud_video(
         point_size=point_size,
         range_min=range_min,
         range_max=range_max,
-        projection=projection,
         x_range=x_range,
         y_range=y_range,
         z_range=z_range,
