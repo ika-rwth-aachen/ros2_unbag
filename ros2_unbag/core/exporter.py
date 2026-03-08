@@ -224,7 +224,11 @@ class Exporter:
                     for w in workers:
                         w.join()
 
-                    raise RuntimeError(f"[{exc_type}] {exc_msg}")
+                    err_msg = "Export exited with error"
+                    if (len(workers) > 1):
+                        err_msg = f"{err_msg} (export results may be incomplete due to parallel processing)"
+
+                    raise RuntimeError(f"{err_msg}: [{exc_type}] {exc_msg}")
 
                 if not producer.is_alive() and all(not w.is_alive() for w in workers):
                     break
