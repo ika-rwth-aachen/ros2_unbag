@@ -17,7 +17,7 @@ def convert_image(img, encoding, width, height):
         numpy.ndarray: Converted image as a numpy array.
 
     Raises:
-        ValueError: If any of the input are empty or the encoding is unsupported 
+        ValueError: If any of the input arguments are empty or the encoding is unsupported 
     """
     if img.size == 0:
         err_msg = "Image is empty"
