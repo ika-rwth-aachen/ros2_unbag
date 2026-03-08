@@ -17,8 +17,14 @@ def convert_image(img, encoding, width, height):
         numpy.ndarray: Converted image as a numpy array.
 
     Raises:
-        ValueError: If the encoding is unsupported.
+        ValueError: If any of the input are empty or the encoding is unsupported 
     """
+    if img.size == 0:
+        err_msg = "Image is empty"
+        raise ValueError(err_msg)
+    if width == 0 or height == 0:
+        err_msg = f"Image has invalid size: {width} x {height} (w x h)"
+        raise ValueError(err_msg)
 
     converters = {
         "bgr8":        lambda: img.reshape(height, width, 3),
@@ -47,33 +53,35 @@ def convert_image(img, encoding, width, height):
 
     # Abstract types: e.g., 8UC3, 32FC1, etc.
     match = re.match(r"(\d+)([USF]C)(\d+)", encoding.upper())
-    if match:
-        depth, _, channels = match.groups()
-        depth = int(depth)
-        channels = int(channels)
-        dtype = {
-            (8, "UC"): np.uint8,
-            (8, "SC"): np.int8,
-            (16, "UC"): np.uint16,
-            (16, "SC"): np.int16,
-            (32, "SC"): np.int32,
-            (32, "FC"): np.float32,
-            (64, "FC"): np.float64,
-        }.get((depth, match.group(2)))
 
-        # If dtype is found, reshape and convert the image to a saveable format
-        if dtype is not None:
-            shape = (height, width) if channels == 1 else (height, width, channels)
-            result = img.view(dtype).reshape(shape)
-            if np.issubdtype(result.dtype, np.floating):
-                result = np.clip(result, 0.0, 1.0) if result.max() <= 1.0 else np.clip(result / result.max(), 0.0, 1.0)
-                result = (result * 255.0).astype(np.uint8)
-            elif result.dtype not in (np.uint8, np.uint16):
-                result = np.clip(result, 0, 255).astype(np.uint8)
+    if not match:
+        err_msg = f"Unsupported encoding: {encoding}" if encoding else "Encoding field is empty"
+        raise ValueError(err_msg)
 
-            if result.ndim == 3 and result.shape[2] > 3:
-                result = result[:, :, :3]
+    depth, _, channels = match.groups()
+    depth = int(depth)
+    channels = int(channels)
+    dtype = {
+        (8, "UC"): np.uint8,
+        (8, "SC"): np.int8,
+        (16, "UC"): np.uint16,
+        (16, "SC"): np.int16,
+        (32, "SC"): np.int32,
+        (32, "FC"): np.float32,
+        (64, "FC"): np.float64,
+    }.get((depth, match.group(2)))
 
-            return result
+    # If dtype is found, reshape and convert the image to a saveable format
+    if dtype is not None:
+        shape = (height, width) if channels == 1 else (height, width, channels)
+        result = img.view(dtype).reshape(shape)
+        if np.issubdtype(result.dtype, np.floating):
+            result = np.clip(result, 0.0, 1.0) if result.max() <= 1.0 else np.clip(result / result.max(), 0.0, 1.0)
+            result = (result * 255.0).astype(np.uint8)
+        elif result.dtype not in (np.uint8, np.uint16):
+            result = np.clip(result, 0, 255).astype(np.uint8)
 
-    raise ValueError(f"Unsupported encoding: {encoding}")
+        if result.ndim == 3 and result.shape[2] > 3:
+            result = result[:, :, :3]
+
+        return result
