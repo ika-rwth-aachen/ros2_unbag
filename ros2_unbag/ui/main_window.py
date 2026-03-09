@@ -59,6 +59,40 @@ from ros2_unbag.ui.styles import (
 __all__ = ["UnbagApp"]
 
 
+class _BagFolderDialogProxyModel(QtCore.QSortFilterProxyModel):
+    """
+    Proxy model for bag folder picker that keeps bag files visible but not selectable.
+
+    Used by the non-native QFileDialog in directory mode so `.db3` and `.mcap`
+    files appear grayed out while users can still choose folders.
+    """
+
+    _disabled_suffixes = {".db3", ".mcap"}
+
+    def flags(self, index):
+        """
+        Return item flags for the dialog entry, disabling selectable state for bag files.
+
+        Args:
+            index: Model index from the proxy model.
+
+        Returns:
+            Qt.ItemFlags: Original flags for most entries, with enabled/selectable
+                         removed for `.db3` and `.mcap` files.
+        """
+        flags = super().flags(index)
+        source_index = self.mapToSource(index)
+        model = self.sourceModel()
+        if not source_index.isValid() or model is None:
+            return flags
+
+        if hasattr(model, "isDir") and hasattr(model, "filePath") and not model.isDir(source_index):
+            suffix = Path(model.filePath(source_index)).suffix.lower()
+            if suffix in self._disabled_suffixes:
+                return flags & ~Qt.ItemIsEnabled & ~Qt.ItemIsSelectable
+        return flags
+
+
 class WorkerThread(QtCore.QThread):
     """
     Background worker thread for executing long-running tasks without blocking the UI.
@@ -383,9 +417,23 @@ class UnbagApp(QtWidgets.QMainWindow):
         Returns:
             None
         """
-        bag_path = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Open Bag Folder", str(self.default_base_dir)
-        )
+        dialog = QtWidgets.QFileDialog(self, "Open Bag Folder", str(self.default_base_dir))
+        dialog.setOption(QtWidgets.QFileDialog.DontUseNativeDialog, True)
+        dialog.setFileMode(QtWidgets.QFileDialog.Directory)
+        dialog.setOption(QtWidgets.QFileDialog.ShowDirsOnly, False)
+        dialog.setNameFilter("ROS bag files (*.db3 *.mcap)")
+        dialog.setProxyModel(_BagFolderDialogProxyModel(dialog))
+        # Hide the "Files of Type" controls to keep this dialog folder-focused.
+        for widget_name in ("fileTypeLabel", "fileTypeCombo"):
+            widget = dialog.findChild(QtWidgets.QWidget, widget_name)
+            if widget:
+                widget.hide()
+
+        if not dialog.exec():
+            return
+
+        selected = dialog.selectedFiles()
+        bag_path = selected[0] if selected else ""
 
         if not bag_path:
             return
