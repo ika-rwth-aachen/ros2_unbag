@@ -80,9 +80,12 @@ def write_video_frame(ps: dict, img, ts_ns: int, path: Path, fmt: str):
             return
 
         dt_ns = ts_ns - ps["first_ts_ns"]
-        fps = 30.0
-        if dt_ns > 0:
+        if ps.get("target_fps") is not None:
+            fps = ps["target_fps"]
+        elif dt_ns > 0:
             fps = max(1.0, min(240.0, 1e9 / dt_ns))
+        else:
+            fps = 30.0
 
         ps["writer"] = _open_writer(path, fmt, size_hw, fps)
         for f in buf:
@@ -106,3 +109,4 @@ def finalize_video(ps: dict, path: Path, fmt: str):
         del ps["writer"]
     ps.pop("first_ts_ns", None)
     ps.pop("buffer", None)
+    ps.pop("frame_size", None)

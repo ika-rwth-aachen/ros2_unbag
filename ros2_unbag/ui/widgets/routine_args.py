@@ -1,0 +1,525 @@
+# MIT License
+
+# Copyright (c) 2025 Institute for Automotive Engineering (ika), RWTH Aachen University
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+"""
+Routine Args Widget Module.
+
+Provides RoutineArgsWidget, a dynamic form widget that auto-generates input
+controls for the extra keyword arguments declared by an ExportRoutine function.
+
+The widget mirrors the processor argument pattern: it queries ExportRoutine.get_args()
+for the current message type and format, then builds a labelled row for each parameter
+using an appropriate input control (combo box for known-choice parameters, spin boxes
+for numeric types, checkbox for bool, and a line edit for everything else).
+
+Usage in TopicSettingsWidget:
+    self.routine_args_widget = RoutineArgsWidget(topic_type, fmt)
+    self.routine_args_widget.args_changed.connect(self._emit_change)
+    args_dict = self.routine_args_widget.get_args()   # -> dict[str, Any]
+    self.routine_args_widget.set_args({"colormap": "turbo", "width": 1920})
+"""
+
+import importlib
+import inspect
+from typing import Any, Dict, Optional, Tuple
+
+from PySide6 import QtCore, QtWidgets
+
+from ros2_unbag.core.routines.base import ExportRoutine
+
+__all__ = ["RoutineArgsWidget"]
+
+# Known enumerated choices for specific parameter names (independent of message type)
+_PARAM_CHOICES: Dict[str, list] = {
+    "colormap": [
+        "viridis", "jet", "plasma", "inferno", "turbo",
+        "magma", "rainbow", "hot", "coolwarm", "hsv",
+    ],
+    "bg_color": ["black", "white"],
+}
+
+# Parameter-specific int spin box configuration: name → (min, max, step)
+_PARAM_INT_CONFIG: Dict[str, tuple] = {
+    "jpeg_quality":    (1, 100, 1),
+    "png_compression": (0, 9, 1),
+    "resize_width":    (1, 99999, 1),
+    "resize_height":   (1, 99999, 1),
+}
+
+# Parameter-specific float spin box configuration: name → (min, max, step, decimals)
+_PARAM_FLOAT_CONFIG: Dict[str, tuple] = {
+    "view_azimuth":   (-180.0, 360.0, 5.0,  1),
+    "view_elevation": (-90.0,  90.0,  5.0,  1),
+    "view_roll":      (-180.0, 180.0, 5.0,  1),
+    "zoom":           (0.01,   100.0, 0.1,  2),
+    "x_range":        (0.1,    1e6,   5.0,  1),
+    "y_range":        (0.1,    1e6,   5.0,  1),
+    "z_range":        (0.1,    1e6,   5.0,  1),
+    "point_size":     (1.0,    50.0,  1.0,  0),
+}
+
+# ---------------------------------------------------------------------------
+# Preview registry
+# ---------------------------------------------------------------------------
+# Maps (msg_type, canonical_fmt) -> (module_path, class_name, button_label, button_tooltip)
+#
+# The referenced class must be a QDialog subclass with a ``params_applied``
+# signal of type ``Signal(dict)`` and accept ``(msg, args, parent=None)``.
+#
+# Register new preview dialogs by calling ``register_preview_factory()``.
+# This can be done from any module — no changes to this file are required.
+_PREVIEW_REGISTRY: Dict[Tuple[str, str], Tuple[str, str, str, str]] = {}
+
+
+def register_preview_factory(
+    msg_types,
+    fmts,
+    module_path: str,
+    class_name: str,
+    *,
+    label: str = "Preview…",
+    tooltip: str = "Open an interactive preview.",
+) -> None:
+    """
+    Register a preview dialog for one or more (msg_type, format) combinations.
+
+    The dialog class is resolved lazily (on first click) from *module_path* and
+    *class_name*, so heavy dependencies (e.g. matplotlib) are not imported until
+    the user actually opens the preview.
+
+    The dialog must subclass ``QDialog`` and expose::
+
+        params_applied = QtCore.Signal(dict)
+
+    It is constructed as ``factory(msg, args, parent=parent_widget)``.
+
+    Args:
+        msg_types: Single message type string or list of strings.
+        fmts: Single format string or list of format strings (without ``@mode`` suffix).
+        module_path (str): Fully-qualified Python module path, e.g.
+            ``"ros2_unbag.ui.widgets.camera_preview_dialog"``.
+        class_name (str): Class name within *module_path*, e.g. ``"PointcloudPreviewDialog"``.
+        label (str): Text shown on the preview button in the form.
+        tooltip (str): Tooltip shown on the preview button.
+
+    Returns:
+        None
+    """
+    if isinstance(msg_types, str):
+        msg_types = [msg_types]
+    if isinstance(fmts, str):
+        fmts = [fmts]
+    for msg_type in msg_types:
+        for fmt in fmts:
+            _PREVIEW_REGISTRY[(msg_type, fmt)] = (module_path, class_name, label, tooltip)
+
+
+def get_preview_factory(msg_type: str, fmt: str):
+    """
+    Return ``(factory_class, label, tooltip)`` for the given *(msg_type, fmt)*,
+    or ``None`` if no preview is registered.
+
+    The dialog class is imported lazily on first call so that its dependencies
+    are not loaded until actually needed.
+
+    Args:
+        msg_type (str): ROS2 message type string.
+        fmt (str): Export format string (``@mode`` suffix is stripped automatically).
+
+    Returns:
+        tuple or None: ``(class, label, tooltip)`` or ``None``.
+    """
+    canonical = fmt.split("@")[0]
+    spec = _PREVIEW_REGISTRY.get((msg_type, canonical))
+    if spec is None:
+        return None
+    module_path, class_name, label, tooltip = spec
+    factory = getattr(importlib.import_module(module_path), class_name)
+    return factory, label, tooltip
+
+
+# Built-in registrations.
+# Adding a new preview: call register_preview_factory() from your dialog module.
+register_preview_factory(
+    msg_types=[
+        "sensor_msgs/msg/PointCloud2",
+        "point_cloud_interfaces/msg/CompressedPointCloud2",
+    ],
+    fmts=["pointcloud/video_mp4", "pointcloud/video_avi"],
+    module_path="ros2_unbag.ui.widgets.pointcloud_preview_dialog",
+    class_name="PointcloudPreviewDialog",
+    label="Preview Camera",
+    tooltip=(
+        "Open the first point cloud frame as an interactive 3-D scatter plot.\n"
+        "Rotate / zoom the view, then click \u2018Apply to Settings\u2019 to copy\n"
+        "the camera parameters (azimuth, elevation, roll, zoom) into the form."
+    ),
+)
+register_preview_factory(
+    msg_types=[
+        "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/Image",
+    ],
+    fmts=["image/png", "image/jpeg"],
+    module_path="ros2_unbag.ui.widgets.image_preview_dialog",
+    class_name="ImagePreviewDialog",
+    label="Preview Image",
+    tooltip=(
+        "Open the first image frame to interactively adjust resize,\n"
+        "JPEG quality, and PNG compression level.\n"
+        "JPEG artefacts are visible in the preview before exporting."
+    ),
+)
+register_preview_factory(
+    msg_types=[
+        "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/Image",
+    ],
+    fmts=["video/mp4", "video/avi"],
+    module_path="ros2_unbag.ui.widgets.image_preview_dialog",
+    class_name="ImagePreviewDialog",
+    label="Preview Frame",
+    tooltip=(
+        "Open the first image frame to interactively adjust resize\n"
+        "and target frame rate before exporting the video."
+    ),
+)
+
+
+class RoutineArgsWidget(QtWidgets.QWidget):
+    """
+    Auto-generated form widget for per-format routine keyword arguments.
+
+    Introspects the registered ExportRoutine for the given message type and
+    format, then creates an appropriate input control for each extra parameter
+    beyond the four fixed positional ones (msg, path, fmt, metadata).
+
+    Supported parameter types:
+    - Parameters whose name matches a key in ``_PARAM_CHOICES`` → QComboBox
+    - ``bool`` annotation → QCheckBox
+    - ``int`` annotation → QSpinBox
+    - ``float`` or ``Optional[float]`` annotation → QDoubleSpinBox
+      (with an "auto" checkbox when the default is None)
+    - Everything else → QLineEdit
+
+    Signals:
+        args_changed (): Emitted whenever any input value changes.
+        preview_requested (): Emitted when the user clicks the preview button.
+            Only present when a preview factory is registered for the current
+            (msg_type, fmt) combination.
+    """
+
+    args_changed = QtCore.Signal()
+
+    #: Emitted when the user clicks the "Preview" button.
+    #: Only connected/relevant when a preview is registered for the current format.
+    preview_requested = QtCore.Signal()
+
+    def __init__(self, topic_type: str, fmt: str, parent=None):
+        """
+        Initialise the widget and build input controls for the given routine.
+
+        Args:
+            topic_type (str): ROS2 message type string.
+            fmt (str): Export format string.
+            parent: Optional Qt parent widget.
+
+        Returns:
+            None
+        """
+        super().__init__(parent)
+        self.topic_type = topic_type
+        self.fmt = fmt
+        self._inputs: Dict[str, QtWidgets.QWidget] = {}  # param_name -> primary input widget
+        self._auto_checks: Dict[str, QtWidgets.QCheckBox] = {}  # for Optional[float] params
+
+        self._form = QtWidgets.QFormLayout(self)
+        self._form.setContentsMargins(0, 0, 0, 0)
+        self._form.setFieldGrowthPolicy(QtWidgets.QFormLayout.ExpandingFieldsGrow)
+        self._form.setSpacing(4)
+
+        self._build()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def get_args(self) -> Dict[str, Any]:
+        """
+        Collect current values from all input controls.
+
+        Returns:
+            dict: Mapping of parameter name to its current value.  Optional
+                  float parameters with "auto" checked are returned as None.
+        """
+        result = {}
+        for name, widget in self._inputs.items():
+            # Optional float with auto checkbox
+            if name in self._auto_checks and self._auto_checks[name].isChecked():
+                result[name] = None
+                continue
+
+            if isinstance(widget, QtWidgets.QCheckBox):
+                result[name] = widget.isChecked()
+            elif isinstance(widget, QtWidgets.QSpinBox):
+                result[name] = widget.value()
+            elif isinstance(widget, QtWidgets.QDoubleSpinBox):
+                result[name] = widget.value()
+            elif isinstance(widget, QtWidgets.QComboBox):
+                result[name] = widget.currentText()
+            else:
+                text = widget.text().strip()
+                result[name] = text if text else None
+        return result
+
+    def set_args(self, args: Optional[Dict[str, Any]]) -> None:
+        """
+        Populate input controls from a dictionary of argument values.
+
+        Unknown keys are silently ignored.  None values set the "auto"
+        checkbox (if available) or leave the field at its default.
+
+        Args:
+            args (dict or None): Argument name → value mapping to apply.
+
+        Returns:
+            None
+        """
+        if not args:
+            return
+        for name, value in args.items():
+            if name not in self._inputs:
+                continue
+            widget = self._inputs[name]
+
+            if value is None:
+                if name in self._auto_checks:
+                    self._auto_checks[name].setChecked(True)
+                    self._inputs[name].setEnabled(False)
+                continue
+
+            # Clear auto checkbox if a concrete value is provided
+            if name in self._auto_checks:
+                self._auto_checks[name].setChecked(False)
+                widget.setEnabled(True)
+
+            if isinstance(widget, QtWidgets.QCheckBox):
+                widget.setChecked(bool(value))
+            elif isinstance(widget, QtWidgets.QSpinBox):
+                widget.setValue(int(value))
+            elif isinstance(widget, QtWidgets.QDoubleSpinBox):
+                widget.setValue(float(value))
+            elif isinstance(widget, QtWidgets.QComboBox):
+                idx = widget.findText(str(value))
+                if idx >= 0:
+                    widget.setCurrentIndex(idx)
+                else:
+                    widget.setCurrentText(str(value))
+            else:
+                widget.setText(str(value))
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _build(self) -> None:
+        """Build one form row per extra parameter reported by ExportRoutine.get_args()."""
+        args = ExportRoutine.get_args(self.topic_type, self.fmt)
+        if not args:
+            no_args_label = QtWidgets.QLabel("No additional options.")
+            no_args_label.setStyleSheet("color: #6b7280; font-style: italic;")
+            self._form.addRow(no_args_label)
+            return
+
+        for name, (param, doc) in args.items():
+            row_widget, auto_check = self._make_input(name, param, doc)
+            self._inputs[name] = row_widget
+            if auto_check is not None:
+                self._auto_checks[name] = auto_check
+
+            label_text = name
+            if param.default is inspect.Parameter.empty:
+                label_text += " *"  # mark required parameters
+
+            label = QtWidgets.QLabel(label_text)
+            if doc:
+                label.setToolTip(doc)
+                row_widget.setToolTip(doc)
+
+            if auto_check is not None:
+                # Wrap spin box + "auto" checkbox in a horizontal layout
+                container = QtWidgets.QWidget()
+                h = QtWidgets.QHBoxLayout(container)
+                h.setContentsMargins(0, 0, 0, 0)
+                h.setSpacing(6)
+                h.addWidget(row_widget, 1)
+                h.addWidget(auto_check)
+                self._form.addRow(label, container)
+            else:
+                self._form.addRow(label, row_widget)
+
+        # Add a preview button if a preview factory is registered for this format.
+        preview = get_preview_factory(self.topic_type, self.fmt)
+        if preview is not None:
+            _, label, tooltip = preview
+            self._preview_btn = QtWidgets.QPushButton(label)
+            self._preview_btn.setToolTip(tooltip)
+            self._preview_btn.clicked.connect(self.preview_requested)
+            self._form.addRow("", self._preview_btn)
+
+    def _make_input(
+        self, name: str, param: inspect.Parameter, doc: str
+    ):
+        """
+        Create the appropriate input widget for a single parameter.
+
+        Args:
+            name (str): Parameter name.
+            param (inspect.Parameter): Inspect parameter object.
+            doc (str): Documentation string for the parameter.
+
+        Returns:
+            tuple: (primary_widget, auto_checkbox_or_None)
+        """
+        annotation = param.annotation
+        default = param.default if param.default is not inspect.Parameter.empty else None
+
+        # --- Known-choices combo box ---
+        if name in _PARAM_CHOICES:
+            combo = QtWidgets.QComboBox()
+            combo.addItems(_PARAM_CHOICES[name])
+            if default is not None:
+                idx = combo.findText(str(default))
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+            combo.currentTextChanged.connect(self.args_changed)
+            return combo, None
+
+        # Resolve Optional[X] → X
+        inner, is_optional = _unwrap_optional(annotation)
+
+        # --- bool ---
+        if inner is bool:
+            cb = QtWidgets.QCheckBox()
+            cb.setChecked(bool(default) if default is not None else False)
+            cb.stateChanged.connect(self.args_changed)
+            return cb, None
+
+        # --- int (and Optional[int]) ---
+        if inner is int:
+            sb = QtWidgets.QSpinBox()
+            if name in _PARAM_INT_CONFIG:
+                i_min, i_max, i_step = _PARAM_INT_CONFIG[name]
+                sb.setRange(i_min, i_max)
+                sb.setSingleStep(i_step)
+            else:
+                sb.setRange(1, 99999)
+                sb.setSingleStep(1)
+            auto_check = None
+            if is_optional or default is None:
+                sb.setValue(sb.minimum())
+                sb.setEnabled(False)
+                auto_check = QtWidgets.QCheckBox("auto")
+                auto_check.setChecked(True)
+                auto_check.stateChanged.connect(
+                    lambda state, w=sb: w.setEnabled(state == 0)
+                )
+                auto_check.stateChanged.connect(lambda _: self.args_changed.emit())
+            else:
+                sb.setValue(int(default))
+            sb.valueChanged.connect(self.args_changed)
+            return sb, auto_check
+
+        # --- float (and Optional[float]) ---
+        if inner is float:
+            dsb = QtWidgets.QDoubleSpinBox()
+            if name in _PARAM_FLOAT_CONFIG:
+                f_min, f_max, f_step, f_dec = _PARAM_FLOAT_CONFIG[name]
+                dsb.setRange(f_min, f_max)
+                dsb.setSingleStep(f_step)
+                dsb.setDecimals(f_dec)
+            else:
+                dsb.setRange(-1e9, 1e9)
+                dsb.setDecimals(3)
+                dsb.setSingleStep(1.0)
+            auto_check = None
+            if is_optional or default is None:
+                dsb.setValue(0.0)
+                dsb.setEnabled(False)
+                auto_check = QtWidgets.QCheckBox("auto")
+                auto_check.setChecked(True)
+                auto_check.stateChanged.connect(
+                    lambda state, w=dsb: w.setEnabled(state == 0)
+                )
+                auto_check.stateChanged.connect(lambda _: self.args_changed.emit())
+            else:
+                dsb.setValue(float(default))
+            dsb.valueChanged.connect(self.args_changed)
+            return dsb, auto_check
+
+        # --- fallback: QLineEdit ---
+        le = QtWidgets.QLineEdit()
+        placeholder_parts = []
+        if doc:
+            placeholder_parts.append(doc)
+        if default is not None:
+            placeholder_parts.append(f"default: {default}")
+        if annotation is not inspect.Parameter.empty:
+            type_name = getattr(annotation, "__name__", str(annotation))
+            placeholder_parts.append(f"type: {type_name}")
+        le.setPlaceholderText(" — ".join(placeholder_parts))
+        if default is not None:
+            le.setText(str(default))
+        le.textChanged.connect(self.args_changed)
+        return le, None
+
+
+# ---------------------------------------------------------------------------
+# Utility
+# ---------------------------------------------------------------------------
+
+def _unwrap_optional(annotation):
+    """
+    Detect Optional[X] (i.e. Union[X, None]) and return (inner_type, True).
+    For a plain type return (annotation, False).
+    For inspect.Parameter.empty return (None, False).
+
+    Args:
+        annotation: Type annotation from an inspect.Parameter.
+
+    Returns:
+        tuple: (inner_type_or_None, is_optional: bool)
+    """
+    import typing
+
+    if annotation is inspect.Parameter.empty:
+        return None, False
+
+    origin = getattr(annotation, "__origin__", None)
+    args = getattr(annotation, "__args__", ())
+
+    # typing.Optional[X] == Union[X, None]
+    if origin is typing.Union and len(args) == 2 and type(None) in args:
+        inner = next(a for a in args if a is not type(None))
+        return inner, True
+
+    return annotation, False

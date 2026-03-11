@@ -43,6 +43,7 @@ from ros2_unbag.ui.styles import (
 from ros2_unbag.core.processors import Processor
 from ros2_unbag.core.routines import ExportRoutine, ExportMode
 from .processor_chain import ProcessorChainWidget
+from .routine_args import RoutineArgsWidget
 
 __all__ = ["TopicSettingsWidget"]
 
@@ -89,7 +90,24 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         self.current_topic = None
         self.current_type = None
         self._scroll_area = None  # Will be set when added to scroll area
+        self._bag_path = None     # Set by main_window after loading a bag
         self.init_ui()
+
+    def set_bag_path(self, bag_path) -> None:
+        """
+        Provide the path to the currently loaded bag file.
+
+        Called by the main window whenever a new bag is loaded so that the
+        "Preview Camera" feature can open an independent reader to fetch the
+        first frame for the current topic.
+
+        Args:
+            bag_path: ``pathlib.Path`` (or str) to the ``.db3`` / ``.mcap`` file.
+
+        Returns:
+            None
+        """
+        self._bag_path = bag_path
 
     def init_ui(self):
         """
@@ -170,6 +188,18 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         format_layout.setStretch(0, 1)
         format_layout.setStretch(1, 1)
         self.form_layout.addRow("Format", format_row)
+
+        # Format Options (routine-specific parameters, shown only when the
+        # selected routine declares extra keyword arguments)
+        self.routine_args_container = QtWidgets.QWidget()
+        self.routine_args_layout = QtWidgets.QVBoxLayout(self.routine_args_container)
+        self.routine_args_layout.setContentsMargins(0, 0, 0, 0)
+        self.routine_args_layout.setSpacing(0)
+        self.routine_args_row_label = QtWidgets.QLabel("Format Options")
+        self.form_layout.addRow(self.routine_args_row_label, self.routine_args_container)
+        self.routine_args_row_label.setVisible(False)
+        self.routine_args_container.setVisible(False)
+        self.routine_args_widget = None
 
         # Output Directory
         self.path_edit = QtWidgets.QLineEdit()
@@ -320,6 +350,11 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         # 2. Update Mode options based on format
         self._refresh_mode_controls(self.fmt_combo.currentText())
 
+        # 2b. Rebuild routine args widget for the current format
+        self._rebuild_routine_args(self.fmt_combo.currentText())
+        if self.routine_args_widget and config.get("routine_args"):
+            self.routine_args_widget.set_args(config["routine_args"])
+
         # 3. Set other fields
         self.path_edit.setText(config.get("path", str(self.default_folder)))
         subdir_value = config.get("subfolder", "%name")
@@ -397,7 +432,9 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         
         if self.chain_widget:
             cfg["processors"] = self.chain_widget.get_chain()
-            
+
+        cfg["routine_args"] = self.routine_args_widget.get_args() if self.routine_args_widget else {}
+
         return cfg
 
     def set_export_state(self, checked: bool):
@@ -451,7 +488,46 @@ class TopicSettingsWidget(QtWidgets.QWidget):
             None
         """
         self._refresh_mode_controls(text)
+        self._rebuild_routine_args(text)
         self._emit_change()
+
+    def _rebuild_routine_args(self, fmt: str) -> None:
+        """
+        Rebuild the RoutineArgsWidget for the currently selected format.
+
+        Clears any existing widget, queries ExportRoutine.get_args() for the
+        new format and, if extra arguments are declared, creates a new
+        RoutineArgsWidget and adds it to the form.
+
+        Args:
+            fmt (str): The newly selected export format string.
+
+        Returns:
+            None
+        """
+        # Remove the old widget
+        while self.routine_args_layout.count():
+            item = self.routine_args_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.routine_args_widget = None
+
+        if not self.current_type:
+            self.routine_args_row_label.setVisible(False)
+            self.routine_args_container.setVisible(False)
+            return
+
+        extra_args = ExportRoutine.get_args(self.current_type, fmt)
+        if extra_args:
+            self.routine_args_widget = RoutineArgsWidget(self.current_type, fmt)
+            self.routine_args_widget.args_changed.connect(self._emit_change)
+            self.routine_args_widget.preview_requested.connect(self._open_preview)
+            self.routine_args_layout.addWidget(self.routine_args_widget)
+            self.routine_args_row_label.setVisible(True)
+            self.routine_args_container.setVisible(True)
+        else:
+            self.routine_args_row_label.setVisible(False)
+            self.routine_args_container.setVisible(False)
 
     def _on_mode_changed(self, idx):
         """
@@ -601,6 +677,98 @@ class TopicSettingsWidget(QtWidgets.QWidget):
             QtCore.Qt.SmoothTransformation
         )
         self.placeholder.setPixmap(scaled)
+
+    def _open_preview(self) -> None:
+        """
+        Read the first message for the current topic and open the registered
+        preview dialog so the user can interactively adjust export parameters.
+
+        The dialog class is resolved from the preview registry in
+        ``routine_args`` on every call, so the actual module (which may have
+        heavy dependencies such as matplotlib) is only imported the first time
+        the user clicks the button.
+
+        A ``QProgressDialog`` is shown while the message is being read from
+        disk.  Any error is surfaced as a ``QMessageBox``.
+
+        Returns:
+            None
+        """
+        if not self._bag_path:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No Bag Loaded",
+                "Please load a bag file before opening the preview.",
+            )
+            return
+
+        if not self.current_topic:
+            return
+
+        from ros2_unbag.ui.widgets.routine_args import get_preview_factory
+        result = get_preview_factory(self.current_type, self.fmt_combo.currentText())
+        if result is None:
+            return
+        factory, _label, _tooltip = result
+
+        # Show a transient progress dialog while reading the bag
+        progress = QtWidgets.QProgressDialog(
+            f"Reading first frame from '{self.current_topic}'\u2026",
+            None, 0, 0, self,
+        )
+        progress.setWindowModality(QtCore.Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        progress.show()
+        QtWidgets.QApplication.processEvents()
+
+        msg = None
+        try:
+            from ros2_unbag.core.bag_reader import BagReader
+            reader = BagReader(str(self._bag_path))
+            for _, m, _ in reader.read_messages([self.current_topic]):
+                msg = m
+                break
+        except Exception as exc:
+            progress.close()
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Preview Failed",
+                f"Could not read the first message:\n{exc}",
+            )
+            return
+        finally:
+            progress.close()
+
+        if msg is None:
+            QtWidgets.QMessageBox.information(
+                self,
+                "No Messages",
+                f"No messages found for topic '{self.current_topic}'.",
+            )
+            return
+
+        args = self.routine_args_widget.get_args() if self.routine_args_widget else {}
+        args = {**args, "__fmt__": self.fmt_combo.currentText()}
+
+        dlg = factory(msg, args, parent=self)
+        dlg.params_applied.connect(self._on_preview_params_applied)
+        dlg.exec()
+
+    def _on_preview_params_applied(self, params: dict) -> None:
+        """
+        Apply parameters returned by a preview dialog to the routine args form
+        and emit a settings-changed signal.
+
+        Args:
+            params (dict): Parameter name → value mapping to apply.
+
+        Returns:
+            None
+        """
+        if self.routine_args_widget:
+            self.routine_args_widget.set_args(params)
+        self._emit_change()
 
     def _emit_change(self):
         """

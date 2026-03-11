@@ -493,6 +493,7 @@ class UnbagApp(QtWidgets.QMainWindow):
         """
         self._hide_status_progress(f"Loaded {self.bag_path.name}")
         self.bag_reader = reader
+        self.topic_settings.set_bag_path(self.bag_path)
         
         # Populate Topic List
         topics = self.bag_reader.get_topics()

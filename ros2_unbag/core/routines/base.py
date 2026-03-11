@@ -23,6 +23,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
+import inspect
 from typing import Dict, Iterable, Optional, Tuple
 
 
@@ -74,13 +75,15 @@ class ExportRoutine:
         """
         storage = defaultdict(dict)  # Define a persistent storage for each topic
 
-        def wrapper(msg, path, fmt, metadata, topic=None):
-            wrapper.persistent_storage = storage[topic] if topic else {}
+        def wrapper(msg, path, fmt, metadata, topic=None, routine_args=None, **kwargs):
+            wrapper.persistent_storage = storage[topic]
             canonical_fmt, _ = ExportRoutine._split_format(fmt)
-            return func(msg, path, canonical_fmt, metadata)
+            merged = {**(routine_args or {}), **kwargs}
+            return func(msg, path, canonical_fmt, metadata, **merged)
 
         wrapper.persistent_storage = {}  # Initialize persistent storage
         self.func = wrapper
+        self._original_func = func  # Keep reference for signature introspection
         return wrapper
 
 
@@ -159,6 +162,78 @@ class ExportRoutine:
             return None
         routine, _, _ = resolved
         return routine.func
+
+    @classmethod
+    def get_args(cls, msg_type, fmt):
+        """
+        Return the extra keyword arguments (beyond the 4 fixed positional args) declared by the
+        registered routine for the given message type and format.
+
+        Returns a dict mapping parameter name to a (inspect.Parameter, doc_str) tuple,
+        mirroring the interface of Processor.get_args().
+
+        Args:
+            msg_type: Message type string.
+            fmt: Export format string.
+
+        Returns:
+            dict: Mapping of parameter name to (inspect.Parameter, description string).
+                  Empty dict if no routine is found or no extra args are declared.
+        """
+        resolved = cls.resolve(msg_type, fmt)
+        if not resolved:
+            return {}
+        routine, _, _ = resolved
+        if not hasattr(routine, "_original_func"):
+            return {}
+        func = routine._original_func
+        sig = inspect.signature(func)
+        doc = inspect.getdoc(func)
+        param_docs = cls._extract_param_docs(doc)
+        # Skip the 4 fixed positional args of every routine
+        _SKIP = {"msg", "path", "fmt", "metadata"}
+        return {
+            name: (param, param_docs.get(name, ""))
+            for name, param in sig.parameters.items()
+            if name not in _SKIP
+        }
+
+    @staticmethod
+    def _extract_param_docs(docstring):
+        """
+        Extract parameter descriptions from a Google-style docstring.
+
+        Args:
+            docstring: The full docstring of the routine function.
+
+        Returns:
+            dict: Mapping of parameter name to description string.
+        """
+        import re
+
+        if not docstring:
+            return {}
+
+        param_docs = {}
+        lines = docstring.splitlines()
+        in_args = False
+        for line in lines:
+            line = line.strip()
+            if line.startswith("Args:"):
+                in_args = True
+                continue
+            if in_args:
+                if re.match(r"^\w+\s*\(.*\):", line):  # param with type
+                    key = line.split(":", 1)[0].split("(")[0].strip()
+                    desc = line.split(":", 1)[1].strip()
+                    param_docs[key] = desc
+                elif re.match(r"^\w+\s*:", line):  # param without type
+                    key = line.split(":", 1)[0].strip()
+                    desc = line.split(":", 1)[1].strip()
+                    param_docs[key] = desc
+                elif line == "":
+                    break  # end of block
+        return param_docs
     
     @classmethod
     def get_mode(cls, msg_type, fmt):

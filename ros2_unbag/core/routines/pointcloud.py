@@ -51,7 +51,14 @@ def export_pointcloud_pkl(msg, path: Path, fmt: str, metadata: ExportMetadata):
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)
-def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
+def export_pointcloud_xyz(
+    msg,
+    path: Path,
+    fmt: str,
+    metadata: ExportMetadata,
+    extra_fields: str = "",
+    filter_nan: bool = True,
+):
     """
     Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
 
@@ -60,10 +67,16 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
         path: Output file path (without extension).
         fmt: Export format string (default "pointcloud/xyz").
         metadata: Export metadata including message index and max index.
+        extra_fields (str): Space-separated list of additional field names to append after X Y Z on each line
+            (e.g. "intensity ring"). Each field must exist in the message.
+        filter_nan (bool): When True, points containing NaN in x, y, or z are skipped.
 
     Returns:
         None
     """
+    if isinstance(filter_nan, str):
+        filter_nan = filter_nan.lower() not in ("false", "0", "no")
+
     # Validate required fields
     field_by_name = {f.name: f for f in msg.fields}
     for name in ("x", "y", "z"):
@@ -74,6 +87,14 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
     for name in ("x", "y", "z"):
         if field_by_name[name].datatype != PointField.FLOAT32:
             raise ValueError(f"Field '{name}' must be FLOAT32")
+
+    # Resolve extra field names
+    extra_field_names = [f for f in extra_fields.split() if f] if extra_fields else []
+    extra_field_infos = []
+    for name in extra_field_names:
+        if name not in field_by_name:
+            raise ValueError(f"PointCloud2 missing extra field '{name}'")
+        extra_field_infos.append(field_by_name[name])
 
     offx, offy, offz = field_by_name["x"].offset, field_by_name["y"].offset, field_by_name["z"].offset
     endian = ">" if msg.is_bigendian else "<"
@@ -86,9 +107,15 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
             x = struct.unpack_from(endian + "f", data, i + offx)[0]
             y = struct.unpack_from(endian + "f", data, i + offy)[0]
             z = struct.unpack_from(endian + "f", data, i + offz)[0]
-            if not msg.is_dense and (math.isnan(x) or math.isnan(y) or math.isnan(z)):
+            if filter_nan and (math.isnan(x) or math.isnan(y) or math.isnan(z)):
                 continue
-            f.write(f"{x} {y} {z}\n")
+            if extra_field_infos:
+                extra_vals = " ".join(
+                    str(_unpack_field(endian, data, i, fi)) for fi in extra_field_infos
+                )
+                f.write(f"{x} {y} {z} {extra_vals}\n")
+            else:
+                f.write(f"{x} {y} {z}\n")
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd", "pointcloud/pcd_compressed", "pointcloud/pcd_ascii"], mode=ExportMode.MULTI_FILE)
@@ -118,3 +145,23 @@ def export_pointcloud_pcd(msg, path: Path, fmt: str, metadata: ExportMetadata):
         pc.save(path.with_suffix(".pcd"), encoding=Encoding.BINARY_COMPRESSED)
     elif fmt == "pointcloud/pcd_ascii":
         pc.save(path.with_suffix(".pcd"), encoding=Encoding.ASCII)
+
+
+_FIELD_STRUCT = {
+    PointField.INT8:    "b",
+    PointField.UINT8:   "B",
+    PointField.INT16:   "h",
+    PointField.UINT16:  "H",
+    PointField.INT32:   "i",
+    PointField.UINT32:  "I",
+    PointField.FLOAT32: "f",
+    PointField.FLOAT64: "d",
+}
+
+
+def _unpack_field(endian: str, data, point_offset: int, field):
+    """Unpack a single scalar value from a PointCloud2 data buffer for the given field."""
+    fmt_char = _FIELD_STRUCT.get(field.datatype)
+    if fmt_char is None:
+        raise ValueError(f"Unsupported PointField datatype {field.datatype} for field '{field.name}'")
+    return struct.unpack_from(endian + fmt_char, data, point_offset + field.offset)[0]
