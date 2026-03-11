@@ -269,7 +269,7 @@ def _render_matplotlib3d(
     """
     # Use the Agg canvas explicitly so we never touch the global backend
     # registry (which would conflict with the interactive Qt canvas used by
-    # CameraPreviewDialog when the GUI is running).
+    # PointcloudPreviewDialog when the GUI is running).
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure as MplFigure
     from mpl_toolkits.mplot3d import Axes3D  # noqa: F401

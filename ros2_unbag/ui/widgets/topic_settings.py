@@ -521,7 +521,7 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         if extra_args:
             self.routine_args_widget = RoutineArgsWidget(self.current_type, fmt)
             self.routine_args_widget.args_changed.connect(self._emit_change)
-            self.routine_args_widget.preview_camera_requested.connect(self._open_camera_preview)
+            self.routine_args_widget.preview_requested.connect(self._open_preview)
             self.routine_args_layout.addWidget(self.routine_args_widget)
             self.routine_args_row_label.setVisible(True)
             self.routine_args_container.setVisible(True)
@@ -678,11 +678,15 @@ class TopicSettingsWidget(QtWidgets.QWidget):
         )
         self.placeholder.setPixmap(scaled)
 
-    def _open_camera_preview(self) -> None:
+    def _open_preview(self) -> None:
         """
-        Read the first PointCloud2 message for the current topic and open
-        ``CameraPreviewDialog`` so the user can interactively set camera
-        parameters.
+        Read the first message for the current topic and open the registered
+        preview dialog so the user can interactively adjust export parameters.
+
+        The dialog class is resolved from the preview registry in
+        ``routine_args`` on every call, so the actual module (which may have
+        heavy dependencies such as matplotlib) is only imported the first time
+        the user clicks the button.
 
         A ``QProgressDialog`` is shown while the message is being read from
         disk.  Any error is surfaced as a ``QMessageBox``.
@@ -694,16 +698,22 @@ class TopicSettingsWidget(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(
                 self,
                 "No Bag Loaded",
-                "Please load a bag file before opening the camera preview.",
+                "Please load a bag file before opening the preview.",
             )
             return
 
         if not self.current_topic:
             return
 
+        from ros2_unbag.ui.widgets.routine_args import get_preview_factory
+        result = get_preview_factory(self.current_type, self.fmt_combo.currentText())
+        if result is None:
+            return
+        factory, _label, _tooltip = result
+
         # Show a transient progress dialog while reading the bag
         progress = QtWidgets.QProgressDialog(
-            f"Reading first frame from '{self.current_topic}'…",
+            f"Reading first frame from '{self.current_topic}'\u2026",
             None, 0, 0, self,
         )
         progress.setWindowModality(QtCore.Qt.WindowModal)
@@ -739,20 +749,19 @@ class TopicSettingsWidget(QtWidgets.QWidget):
             return
 
         args = self.routine_args_widget.get_args() if self.routine_args_widget else {}
+        args = {**args, "__fmt__": self.fmt_combo.currentText()}
 
-        from ros2_unbag.ui.widgets.camera_preview_dialog import CameraPreviewDialog
-        dlg = CameraPreviewDialog(msg, args, parent=self)
-        dlg.camera_params_applied.connect(self._on_camera_params_applied)
+        dlg = factory(msg, args, parent=self)
+        dlg.params_applied.connect(self._on_preview_params_applied)
         dlg.exec()
 
-    def _on_camera_params_applied(self, params: dict) -> None:
+    def _on_preview_params_applied(self, params: dict) -> None:
         """
-        Apply camera parameters returned by ``CameraPreviewDialog`` to the
-        routine args form and emit a settings-changed signal.
+        Apply parameters returned by a preview dialog to the routine args form
+        and emit a settings-changed signal.
 
         Args:
-            params (dict): Dict with keys ``view_azimuth``, ``view_elevation``,
-                ``view_roll``, ``zoom``.
+            params (dict): Parameter name → value mapping to apply.
 
         Returns:
             None

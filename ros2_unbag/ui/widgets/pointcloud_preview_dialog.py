@@ -55,13 +55,13 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 – registers the 3d proje
 from ros2_unbag.core.utils.pointcloud_video_utils import extract_xyz, extract_field
 from sensor_msgs.msg import PointCloud2
 
-__all__ = ["CameraPreviewDialog"]
+__all__ = ["PointcloudPreviewDialog"]
 
 _PANEL_WIDTH = 260       # fixed width of the right-hand control panel (px)
 _RERENDER_DELAY_MS = 250  # debounce before full scatter rebuild (ms)
 
 
-class CameraPreviewDialog(QtWidgets.QDialog):
+class PointcloudPreviewDialog(QtWidgets.QDialog):
     """
     Interactive 3-D point cloud camera preview dialog with a live parameter panel.
 
@@ -80,14 +80,14 @@ class CameraPreviewDialog(QtWidgets.QDialog):
     scatter re-render that preserves the current view angle.
 
     Signals:
-        camera_params_applied (dict): Emitted on "Apply to Settings".  Keys:
+        params_applied (dict): Emitted on "Apply to Settings".  Keys:
             ``view_azimuth``, ``view_elevation``, ``view_roll``, ``zoom``,
             ``x_range``, ``y_range``, ``z_range``,
             ``range_min`` (float or None), ``range_max`` (float or None),
             ``bg_color``.
     """
 
-    camera_params_applied = QtCore.Signal(dict)
+    params_applied = QtCore.Signal(dict)
 
     def __init__(self, msg, args: dict, parent=None):
         """
@@ -634,11 +634,11 @@ class CameraPreviewDialog(QtWidgets.QDialog):
 
     def _apply(self) -> None:
         """
-        Emit ``camera_params_applied`` with all current parameter values and
+        Emit ``params_applied`` with all current parameter values and
         close the dialog with an *Accepted* result.
 
         Returns:
             None
         """
-        self.camera_params_applied.emit(self._collect_params())
+        self.params_applied.emit(self._collect_params())
         self.accept()

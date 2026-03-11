@@ -38,8 +38,9 @@ Usage in TopicSettingsWidget:
     self.routine_args_widget.set_args({"colormap": "turbo", "width": 1920})
 """
 
+import importlib
 import inspect
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from PySide6 import QtCore, QtWidgets
 
@@ -76,6 +77,133 @@ _PARAM_FLOAT_CONFIG: Dict[str, tuple] = {
     "point_size":     (1.0,    50.0,  1.0,  0),
 }
 
+# ---------------------------------------------------------------------------
+# Preview registry
+# ---------------------------------------------------------------------------
+# Maps (msg_type, canonical_fmt) -> (module_path, class_name, button_label, button_tooltip)
+#
+# The referenced class must be a QDialog subclass with a ``params_applied``
+# signal of type ``Signal(dict)`` and accept ``(msg, args, parent=None)``.
+#
+# Register new preview dialogs by calling ``register_preview_factory()``.
+# This can be done from any module — no changes to this file are required.
+_PREVIEW_REGISTRY: Dict[Tuple[str, str], Tuple[str, str, str, str]] = {}
+
+
+def register_preview_factory(
+    msg_types,
+    fmts,
+    module_path: str,
+    class_name: str,
+    *,
+    label: str = "Preview…",
+    tooltip: str = "Open an interactive preview.",
+) -> None:
+    """
+    Register a preview dialog for one or more (msg_type, format) combinations.
+
+    The dialog class is resolved lazily (on first click) from *module_path* and
+    *class_name*, so heavy dependencies (e.g. matplotlib) are not imported until
+    the user actually opens the preview.
+
+    The dialog must subclass ``QDialog`` and expose::
+
+        params_applied = QtCore.Signal(dict)
+
+    It is constructed as ``factory(msg, args, parent=parent_widget)``.
+
+    Args:
+        msg_types: Single message type string or list of strings.
+        fmts: Single format string or list of format strings (without ``@mode`` suffix).
+        module_path (str): Fully-qualified Python module path, e.g.
+            ``"ros2_unbag.ui.widgets.camera_preview_dialog"``.
+        class_name (str): Class name within *module_path*, e.g. ``"PointcloudPreviewDialog"``.
+        label (str): Text shown on the preview button in the form.
+        tooltip (str): Tooltip shown on the preview button.
+
+    Returns:
+        None
+    """
+    if isinstance(msg_types, str):
+        msg_types = [msg_types]
+    if isinstance(fmts, str):
+        fmts = [fmts]
+    for msg_type in msg_types:
+        for fmt in fmts:
+            _PREVIEW_REGISTRY[(msg_type, fmt)] = (module_path, class_name, label, tooltip)
+
+
+def get_preview_factory(msg_type: str, fmt: str):
+    """
+    Return ``(factory_class, label, tooltip)`` for the given *(msg_type, fmt)*,
+    or ``None`` if no preview is registered.
+
+    The dialog class is imported lazily on first call so that its dependencies
+    are not loaded until actually needed.
+
+    Args:
+        msg_type (str): ROS2 message type string.
+        fmt (str): Export format string (``@mode`` suffix is stripped automatically).
+
+    Returns:
+        tuple or None: ``(class, label, tooltip)`` or ``None``.
+    """
+    canonical = fmt.split("@")[0]
+    spec = _PREVIEW_REGISTRY.get((msg_type, canonical))
+    if spec is None:
+        return None
+    module_path, class_name, label, tooltip = spec
+    factory = getattr(importlib.import_module(module_path), class_name)
+    return factory, label, tooltip
+
+
+# Built-in registrations.
+# Adding a new preview: call register_preview_factory() from your dialog module.
+register_preview_factory(
+    msg_types=[
+        "sensor_msgs/msg/PointCloud2",
+        "point_cloud_interfaces/msg/CompressedPointCloud2",
+    ],
+    fmts=["pointcloud/video_mp4", "pointcloud/video_avi"],
+    module_path="ros2_unbag.ui.widgets.pointcloud_preview_dialog",
+    class_name="PointcloudPreviewDialog",
+    label="Preview Camera",
+    tooltip=(
+        "Open the first point cloud frame as an interactive 3-D scatter plot.\n"
+        "Rotate / zoom the view, then click \u2018Apply to Settings\u2019 to copy\n"
+        "the camera parameters (azimuth, elevation, roll, zoom) into the form."
+    ),
+)
+register_preview_factory(
+    msg_types=[
+        "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/Image",
+    ],
+    fmts=["image/png", "image/jpeg"],
+    module_path="ros2_unbag.ui.widgets.image_preview_dialog",
+    class_name="ImagePreviewDialog",
+    label="Preview Image",
+    tooltip=(
+        "Open the first image frame to interactively adjust resize,\n"
+        "JPEG quality, and PNG compression level.\n"
+        "JPEG artefacts are visible in the preview before exporting."
+    ),
+)
+register_preview_factory(
+    msg_types=[
+        "sensor_msgs/msg/CompressedImage",
+        "sensor_msgs/msg/Image",
+    ],
+    fmts=["video/mp4", "video/avi"],
+    module_path="ros2_unbag.ui.widgets.image_preview_dialog",
+    class_name="ImagePreviewDialog",
+    label="Preview Frame",
+    tooltip=(
+        "Open the first image frame to interactively adjust resize\n"
+        "and target frame rate before exporting the video."
+    ),
+)
+
 
 class RoutineArgsWidget(QtWidgets.QWidget):
     """
@@ -95,12 +223,16 @@ class RoutineArgsWidget(QtWidgets.QWidget):
 
     Signals:
         args_changed (): Emitted whenever any input value changes.
+        preview_requested (): Emitted when the user clicks the preview button.
+            Only present when a preview factory is registered for the current
+            (msg_type, fmt) combination.
     """
 
     args_changed = QtCore.Signal()
 
-    #: Emitted when the user clicks the "Preview Camera" button (pointcloud video only).
-    preview_camera_requested = QtCore.Signal()
+    #: Emitted when the user clicks the "Preview" button.
+    #: Only connected/relevant when a preview is registered for the current format.
+    preview_requested = QtCore.Signal()
 
     def __init__(self, topic_type: str, fmt: str, parent=None):
         """
@@ -245,16 +377,13 @@ class RoutineArgsWidget(QtWidgets.QWidget):
             else:
                 self._form.addRow(label, row_widget)
 
-        # For pointcloud video formats add a "Preview Camera" button so the user
-        # can interactively set azimuth / elevation / roll / zoom on the first frame.
-        if "pointcloud/video" in self.fmt:
-            self._preview_btn = QtWidgets.QPushButton("Preview Camera")
-            self._preview_btn.setToolTip(
-                "Open the first point cloud frame as an interactive 3-D scatter plot.\n"
-                "Rotate / zoom the view, then click \u2018Apply to Settings\u2019 to copy\n"
-                "the camera parameters (azimuth, elevation, roll, zoom) into the form."
-            )
-            self._preview_btn.clicked.connect(self.preview_camera_requested)
+        # Add a preview button if a preview factory is registered for this format.
+        preview = get_preview_factory(self.topic_type, self.fmt)
+        if preview is not None:
+            _, label, tooltip = preview
+            self._preview_btn = QtWidgets.QPushButton(label)
+            self._preview_btn.setToolTip(tooltip)
+            self._preview_btn.clicked.connect(self.preview_requested)
             self._form.addRow("", self._preview_btn)
 
     def _make_input(
