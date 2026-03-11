@@ -56,6 +56,14 @@ _PARAM_CHOICES: Dict[str, list] = {
     "bg_color": ["black", "white"],
 }
 
+# Parameter-specific int spin box configuration: name → (min, max, step)
+_PARAM_INT_CONFIG: Dict[str, tuple] = {
+    "jpeg_quality":    (1, 100, 1),
+    "png_compression": (0, 9, 1),
+    "resize_width":    (1, 99999, 1),
+    "resize_height":   (1, 99999, 1),
+}
+
 # Parameter-specific float spin box configuration: name → (min, max, step, decimals)
 _PARAM_FLOAT_CONFIG: Dict[str, tuple] = {
     "view_azimuth":   (-180.0, 360.0, 5.0,  1),
@@ -287,15 +295,30 @@ class RoutineArgsWidget(QtWidgets.QWidget):
             cb.stateChanged.connect(self.args_changed)
             return cb, None
 
-        # --- int ---
+        # --- int (and Optional[int]) ---
         if inner is int:
             sb = QtWidgets.QSpinBox()
-            sb.setRange(1, 99999)
-            sb.setSingleStep(1)
-            if default is not None:
+            if name in _PARAM_INT_CONFIG:
+                i_min, i_max, i_step = _PARAM_INT_CONFIG[name]
+                sb.setRange(i_min, i_max)
+                sb.setSingleStep(i_step)
+            else:
+                sb.setRange(1, 99999)
+                sb.setSingleStep(1)
+            auto_check = None
+            if is_optional or default is None:
+                sb.setValue(sb.minimum())
+                sb.setEnabled(False)
+                auto_check = QtWidgets.QCheckBox("auto")
+                auto_check.setChecked(True)
+                auto_check.stateChanged.connect(
+                    lambda state, w=sb: w.setEnabled(state == 0)
+                )
+                auto_check.stateChanged.connect(lambda _: self.args_changed.emit())
+            else:
                 sb.setValue(int(default))
             sb.valueChanged.connect(self.args_changed)
-            return sb, None
+            return sb, auto_check
 
         # --- float (and Optional[float]) ---
         if inner is float:

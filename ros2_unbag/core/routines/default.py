@@ -31,7 +31,14 @@ from ros2_unbag.core.utils.file_utils import get_time_from_msg
 
 
 @ExportRoutine.set_catch_all(["text/json", "text/yaml", "table/csv"], mode=ExportMode.MULTI_FILE)
-def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadata):
+def export_generic_multi_file(
+    msg,
+    path: Path,
+    fmt: str,
+    metadata: ExportMetadata,
+    json_indent: int = None,
+    csv_delimiter: str = ",",
+):
     """
     Generic export handler supporting JSON, YAML, and CSV formats. 
     Serialize the message, determine file extension, and save to the given path.
@@ -41,14 +48,18 @@ def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadat
         path: Output file path (without extension).
         fmt: Export format string ("text/yaml", "text/json", "table/csv").
         metadata: Export metadata including message index and max index.
+        json_indent (int or None): Indentation level for JSON pretty-printing. None produces compact single-line output.
+        csv_delimiter (str): Column delimiter for CSV output (e.g. ",", ";", "\\t").
 
     Returns:
         None
     """
+    json_indent = int(json_indent) if json_indent is not None else None
+
     timestamp = get_time_from_msg(msg, return_datetime=True)
 
     if fmt == "text/json":
-        payload = _serialize_message_with_timestamp(msg, "json", timestamp)
+        payload = _serialize_message_with_timestamp(msg, "json", timestamp, json_indent=json_indent)
         file_ending = ".json"
     elif fmt == "text/yaml":
         payload = _serialize_message_with_timestamp(msg, "yaml", timestamp)
@@ -59,11 +70,18 @@ def export_generic_multi_file(msg, path: Path, fmt: str, metadata: ExportMetadat
 
     # Save the serialized message to a file
     with open(path.with_suffix(file_ending), "w") as f:
-        _write_line(f, payload, fmt, True, True)
+        _write_line(f, payload, fmt, True, True, csv_delimiter=csv_delimiter)
 
 
 @ExportRoutine.set_catch_all(["text/json", "text/yaml", "table/csv"], mode=ExportMode.SINGLE_FILE)
-def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetadata):
+def export_generic_single_file(
+    msg,
+    path: Path,
+    fmt: str,
+    metadata: ExportMetadata,
+    json_indent: int = None,
+    csv_delimiter: str = ",",
+):
     """
     Generic export handler supporting JSON, YAML, and CSV formats.
     Serialize the message, determine file extension, and append to the given path with file locking (precaution).
@@ -73,14 +91,18 @@ def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetada
         path: Output file path (without extension).
         fmt: Export format string ("text/yaml", "text/json", "table/csv").
         metadata: Export metadata including message index and max index.
+        json_indent (int or None): Indentation level for JSON pretty-printing. None produces compact single-line output.
+        csv_delimiter (str): Column delimiter for CSV output (e.g. ",", ";", "\\t").
 
     Returns:
         None
     """
+    json_indent = int(json_indent) if json_indent is not None else None
+
     timestamp = get_time_from_msg(msg, return_datetime=True)
 
     if fmt == "text/json":
-        payload = _serialize_message_with_timestamp(msg, "json", timestamp)
+        payload = _serialize_message_with_timestamp(msg, "json", timestamp, json_indent=json_indent)
         file_ending = ".json"
     elif fmt == "text/yaml":
         payload = _serialize_message_with_timestamp(msg, "yaml", timestamp)
@@ -100,10 +122,10 @@ def export_generic_single_file(msg, path: Path, fmt: str, metadata: ExportMetada
             f.seek(0)
             f.truncate()
         # Write payload line to the file
-        _write_line(f, payload, fmt, is_first, is_last)
+        _write_line(f, payload, fmt, is_first, is_last, csv_delimiter=csv_delimiter)
 
 
-def _serialize_message_with_timestamp(msg, fmt, timestamp):
+def _serialize_message_with_timestamp(msg, fmt, timestamp, json_indent=None):
     """
     Serialize a ROS message to the specified format.
 
@@ -111,13 +133,14 @@ def _serialize_message_with_timestamp(msg, fmt, timestamp):
         msg: ROS message instance to serialize.
         fmt: Export format string ("yaml", "json", "csv").
         timestamp: Timestamp to include in the serialized output.
+        json_indent (int or None): Indentation for JSON output.
 
     Returns:
         str: Serialized message as a string.
     """
     if fmt == "json":
         message_dict = message_to_ordereddict(msg)
-        serialized_line = json.dumps(message_dict, default=str)
+        serialized_line = json.dumps(message_dict, default=str, indent=json_indent)
         serialized_line_with_timestamp = f'"{timestamp.isoformat()}": {serialized_line}'
         return serialized_line_with_timestamp
     elif fmt == "yaml":
@@ -132,7 +155,7 @@ def _serialize_message_with_timestamp(msg, fmt, timestamp):
         return [header, values]
 
 
-def _write_line(file, line, filetype, is_first, is_last):
+def _write_line(file, line, filetype, is_first, is_last, csv_delimiter=","):
     """
     Write a serialized message line to the file.
     For JSON/YAML, write the string; for CSV, ensure header and write the row.
@@ -143,6 +166,7 @@ def _write_line(file, line, filetype, is_first, is_last):
         filetype: Export format string.
         is_first: Boolean indicating if this is the first message for the file.
         is_last: Boolean indicating if this is the last message for the file.
+        csv_delimiter (str): Column delimiter for CSV output.
 
     Returns:
         None
@@ -166,27 +190,28 @@ def _write_line(file, line, filetype, is_first, is_last):
     # Writing for csv - include header only for the first line
     if "table/csv" in filetype:
         if is_first:
-            _add_csv_header(file, line[0])
-        writer = csv.writer(file)
+            _add_csv_header(file, line[0], csv_delimiter)
+        writer = csv.writer(file, delimiter=csv_delimiter)
         writer.writerow(line[1])   
 
     file.flush()
 
 
-def _add_csv_header(file, header):
+def _add_csv_header(file, header, csv_delimiter=","):
     """
     Ensure the CSV file starts with the correct header.
 
     Args:
         file: File object to write to.
         header: List of column names for the CSV header.
+        csv_delimiter (str): Column delimiter for CSV output.
 
     Returns:
         None
     """
     file.seek(0)
     file.truncate()
-    writer = csv.writer(file)
+    writer = csv.writer(file, delimiter=csv_delimiter)
     writer.writerow(header)
 
 
