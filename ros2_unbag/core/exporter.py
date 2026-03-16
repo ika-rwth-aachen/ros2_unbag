@@ -25,6 +25,7 @@ import logging
 import multiprocessing as mp
 from pathlib import Path
 import threading
+import traceback
 
 from ros2_unbag.core.processors.base import Processor
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
@@ -33,6 +34,7 @@ from ros2_unbag.core.utils.file_utils import get_time_from_msg, substitute_place
 
 class Exporter:
     # Handles parallel export of messages from a ROS2 bag
+    _MAX_DETAILED_FAILURE_LOGS = 5
 
     def __init__(self, bag_reader, export_config, global_config, progress_callback=None):
         """
@@ -57,6 +59,10 @@ class Exporter:
         self.progress_callback = progress_callback
         self.continue_on_error = bool(self.global_config.get("continue_on_error", False))
         self.failed_items = mp.Value("i", 0)
+        self.failure_counts = defaultdict(int)
+        self._detailed_failure_logs_emitted = 0
+        self._remaining_detailed_failures = mp.Value("i", self._MAX_DETAILED_FAILURE_LOGS)
+        self.failure_queue = mp.Queue() if self.continue_on_error else None
 
         # Create a queue for worker exceptions to communicate back to the main process
         self.exception_queue = mp.Queue()
@@ -93,9 +99,12 @@ class Exporter:
         self.num_workers = max(1, int(mp.cpu_count() * cpu_percentage * 0.01))
         self.num_parallel_workers = max(1, self.num_workers - len(self.sequential_topics))
 
-        self.logger.info(f"Using {self.num_workers} workers for export, "
-              f"{self.num_parallel_workers} for parallel topics, "
-              f"{len(self.sequential_topics)} for sequential topics.")
+        self.logger.info(
+            "Using %d workers for export, %d for parallel topics, %d for sequential topics.",
+            self.num_workers,
+            self.num_parallel_workers,
+            len(self.sequential_topics),
+        )
         self._enqueued_files = set()
 
         # Pre-fetch export handlers and processors
@@ -207,6 +216,14 @@ class Exporter:
                                    name="Monitor",
                                    daemon=True)
         monitor.start()
+        failure_monitor = None
+        if self.continue_on_error:
+            failure_monitor = threading.Thread(
+                target=self._monitor_failures,
+                name="FailureMonitor",
+                daemon=True,
+            )
+            failure_monitor.start()
 
         # Monitor the queues and handle exceptions
         try:
@@ -241,16 +258,12 @@ class Exporter:
             for w in workers:
                 w.join()
             raise
-
-        progress_queue.put(None)
-        monitor.join()
-
-        if self.continue_on_error and self.failed_item_count > 0:
-            self.logger.warning(
-                "Export finished with %d skipped item(s) due to processing/export errors.",
-                self.failed_item_count,
-            )
-
+        finally:
+            progress_queue.put(None)
+            monitor.join()
+            if failure_monitor is not None:
+                self.failure_queue.put(None)
+                failure_monitor.join()
 
     def abort_export(self):
         """
@@ -324,7 +337,11 @@ class Exporter:
             discard_eps = global_rcfg.get("discard_eps")
             if assoc == "nearest" and discard_eps is None:
                 raise ValueError("'nearest' association requires 'discard_eps' in global config.")
-            self.logger.info(f"Resampling with strategy '{assoc}' to master topic '{master}'")
+            self.logger.info(
+                "Resampling with strategy '%s' to master topic '%s'",
+                assoc,
+                master,
+            )
             return master, assoc, discard_eps
         return None, None, None
 
@@ -560,10 +577,12 @@ class Exporter:
         """
         if not dropped_frames:
             return
-        self.logger.info("The synchronization process dropped frames caused by the discard eps.\n"
-        "The following topics were not available at frame generation time:")
+        self.logger.info(
+            "The synchronization process dropped frames caused by the discard eps.\n"
+            "The following topics were not available at frame generation time:"
+        )
         for topic, count in dropped_frames.items():
-            self.logger.info(f"  {topic}: {count} times")
+            self.logger.info("  %s: %d times", topic, count)
 
 
     def _enqueue_export_task(self, topic, msg, master_ts=None):
@@ -674,12 +693,18 @@ class Exporter:
                 if self.continue_on_error:
                     with self.failed_items.get_lock():
                         self.failed_items.value += 1
-                    self.logger.exception(
-                        "Skipping failed item for topic '%s' (output: %s): %s",
+                    include_traceback = False
+                    with self._remaining_detailed_failures.get_lock():
+                        if self._remaining_detailed_failures.value > 0:
+                            self._remaining_detailed_failures.value -= 1
+                            include_traceback = True
+                    self.failure_queue.put((
                         topic if "topic" in locals() else "<unknown>",
                         str(full_path) if "full_path" in locals() else "<unknown>",
-                        e,
-                    )
+                        type(e).__name__,
+                        str(e),
+                        traceback.format_exc() if include_traceback else None,
+                    ))
                     progress_queue.put(1)
                     continue
 
@@ -709,8 +734,72 @@ class Exporter:
                     self.progress_callback(done, self.max_progress_count)
                 except Exception:
                     # Handle exceptions in progress callback
-                    self.logger.error(f"Error in progress callback: {done}/{self.max_progress_count}")
-                    pass
+                    self.logger.exception(
+                        "Error in progress callback at %d/%d",
+                        done,
+                        self.max_progress_count,
+                    )
+
+    def _monitor_failures(self):
+        """
+        Aggregate worker-level processing/export failures and emit bounded detail logs.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        while True:
+            event = self.failure_queue.get()
+            if event is None:
+                break
+
+            topic, output_path, exc_type, exc_msg, exc_traceback = event
+            signature = (topic, exc_type, exc_msg)
+            self.failure_counts[signature] += 1
+
+            if self._detailed_failure_logs_emitted >= self._MAX_DETAILED_FAILURE_LOGS:
+                continue
+
+            if exc_traceback is None:
+                continue
+
+            self._detailed_failure_logs_emitted += 1
+            self.logger.error(
+                "Skipping failed item for topic '%s' (output: %s) due to %s: %s\n%s",
+                topic,
+                output_path,
+                exc_type,
+                exc_msg,
+                exc_traceback.rstrip(),
+            )
+
+        if not self.failure_counts:
+            return
+
+        suppressed_count = self.failed_item_count - self._detailed_failure_logs_emitted
+        if suppressed_count > 0:
+            self.logger.warning(
+                "Suppressed detailed logs for %d additional failed item(s).",
+                suppressed_count,
+            )
+
+        self.logger.warning(
+            "Skipped %d item(s) due to processing/export errors. Failure summary:",
+            self.failed_item_count,
+        )
+        for (topic, exc_type, exc_msg), count in sorted(
+            self.failure_counts.items(),
+            key=lambda item: (-item[1], item[0][0], item[0][1], item[0][2]),
+        ):
+            self.logger.warning(
+                "  %s x%d on topic '%s': %s",
+                exc_type,
+                count,
+                topic,
+                exc_msg,
+            )
 
     def _prepare_processor_chain(self, topic, cfg, topic_type):
         """

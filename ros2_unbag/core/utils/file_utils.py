@@ -3,6 +3,7 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
+_MISSING_TIMESTAMP_WARNING_TYPES = set()
 
 def get_time_from_msg(msg, return_datetime=True):
     """
@@ -23,9 +24,14 @@ def get_time_from_msg(msg, return_datetime=True):
             sec = msg.stamp.sec
             nanosec = msg.stamp.nanosec
         except AttributeError:
-            logger.warning(
-                "Message has no valid timestamp; falling back to datetime.now() - This may lead to incorrect behavior."
-            )
+            msg_type = type(msg).__name__
+            if msg_type not in _MISSING_TIMESTAMP_WARNING_TYPES:
+                _MISSING_TIMESTAMP_WARNING_TYPES.add(msg_type)
+                logger.warning(
+                    "Message type '%s' has no valid timestamp; falling back to datetime.now(). "
+                    "This may lead to incorrect behavior.",
+                    msg_type,
+                )
             now = datetime.now()
             if return_datetime:
                 return now
