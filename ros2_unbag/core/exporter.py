@@ -49,7 +49,6 @@ class Exporter:
             None
         """
         self.logger = logging.getLogger(__name__)
-        logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
         self.bag_reader = bag_reader
         self.config = export_config

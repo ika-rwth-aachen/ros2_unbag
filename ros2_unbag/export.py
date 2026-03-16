@@ -22,6 +22,7 @@
 
 import importlib
 import json
+import logging
 import os
 import sys
 from typing import Optional, Sequence
@@ -38,6 +39,8 @@ import ros2_unbag.core.processors
 import ros2_unbag.core.routines
 from ros2_unbag.ui.main_window import UnbagApp
 
+logger = logging.getLogger(__name__)
+
 # ros2cli is optional
 try:
     from ros2cli.command import CommandExtension
@@ -46,6 +49,18 @@ except Exception:
         pass
 
 class ExportCommand(CommandExtension):
+
+    def _configure_logging(self):
+        """
+        Configure CLI logging once for this process.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
     def add_arguments(self, parser, cli_name):
         """
@@ -115,6 +130,7 @@ class ExportCommand(CommandExtension):
         Returns:
             int or None: Return code or None if running GUI.
         """
+        self._configure_logging()
 
         # Handle routine or processor installation
         if args.install_routine is not None:
@@ -200,7 +216,7 @@ class ExportCommand(CommandExtension):
         if exporter.failed_item_count > 0:
             logger.warning("Export complete with %d skipped item(s).", exporter.failed_item_count)
         else:
-            print("Export complete.")
+            logger.info("Export complete.")
         return 0
 
 
@@ -665,7 +681,7 @@ class ExportCommand(CommandExtension):
         if not import_successful:
             sys.exit(f"Error importing routine from {path}")
         else:
-            print(f"Imported routine from {path}")
+            logger.info("Imported routine from %s", path)
 
 
     def install_processor(self, path):
@@ -685,7 +701,7 @@ class ExportCommand(CommandExtension):
         if not import_successful:
             sys.exit(f"Error importing processor from {path}")
         else:
-            print(f"Imported processor from {path}")
+            logger.info("Imported processor from %s", path)
 
 
     def import_file(self, path, dest_dir):
