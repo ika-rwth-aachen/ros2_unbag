@@ -80,14 +80,14 @@ def badge_color(apt_version: str | None, tag_version: str | None) -> str:
     """Select green for matching releases, orange for a version mismatch, red if absent."""
     if apt_version is None:
         return "e05d44"
-    return "0a7d2c" if display_version(apt_version) == tag_version else "orange"
+    return "97ca00" if display_version(apt_version) == tag_version else "orange"
 
 
 def write_badge(distro: str, version: str | None, tag_version: str | None) -> None:
     """Write an endpoint schema understood by shields.io."""
     badge = {
         "schemaVersion": 1,
-        "label": f"apt · ROS 2 {distro.title()}",
+        "label": f"apt · {distro.title()}",
         "message": display_version(version) or "unavailable",
         "color": badge_color(version, tag_version),
         "cacheSeconds": 3600,
