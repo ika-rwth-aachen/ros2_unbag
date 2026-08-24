@@ -48,3 +48,4 @@ CMakeFiles/
 data/
 !/.github/*.yaml
 !/.github/*.yml
+!/.github/workflows/*.yml

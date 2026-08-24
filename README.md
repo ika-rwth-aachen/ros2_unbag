@@ -6,9 +6,25 @@
   <img src="https://img.shields.io/github/license/ika-rwth-aachen/ros2_unbag"/>
   <a href="https://github.com/ika-rwth-aachen/ros2_unbag/releases/latest"><img src="https://img.shields.io/github/v/release/ika-rwth-aachen/ros2_unbag"/></a>
   <a href="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/docker-ros.yml"><img src="https://github.com/ika-rwth-aachen/ros2_unbag/actions/workflows/docker-ros.yml/badge.svg"/></a>
+  <br/>
+  <a href="https://repo.ros2.org/status_page/ros_humble_default.html?q=unbag"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fika-rwth-aachen.github.io%2Fros2_unbag%2Fapt-versions%2Fhumble.json" alt="apt package version for ROS 2 Humble"/></a>
+  <a href="https://repo.ros2.org/status_page/ros_jazzy_default.html?q=unbag"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fika-rwth-aachen.github.io%2Fros2_unbag%2Fapt-versions%2Fjazzy.json" alt="apt package version for ROS 2 Jazzy"/></a>
+  <a href="https://repo.ros2.org/status_page/ros_kilted_default.html?q=unbag"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fika-rwth-aachen.github.io%2Fros2_unbag%2Fapt-versions%2Fkilted.json" alt="apt package version for ROS 2 Kilted"/></a>
+  <a href="https://repo.ros2.org/status_page/ros_lyrical_default.html?q=unbag"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fika-rwth-aachen.github.io%2Fros2_unbag%2Fapt-versions%2Flyrical.json" alt="apt package version for ROS 2 Lyrical"/></a>
+  <a href="https://repo.ros2.org/status_page/ros_rolling_default.html?q=unbag"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fika-rwth-aachen.github.io%2Fros2_unbag%2Fapt-versions%2Frolling.json" alt="apt package version for ROS 2 Rolling"/></a>
 </p>
 
 *ros2 unbag* is a powerful ROS 2 tool featuring an **intuitive GUI** and **flexible CLI** for extracting topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
+
+> [!IMPORTANT]
+> **Official releases are now available as ROS binary packages via `apt`.** PyPI/pip is no longer the official distribution channel.
+>
+> ```bash
+> sudo apt update
+> sudo apt install ros-<distro>-unbag
+> ```
+>
+> Replace `<distro>` with your ROS 2 distribution, such as `humble`, `jazzy`, `lyrical`, or `rolling`.
 
 - **🎨 Intuitive GUI interface** for interactive bag exploration and export configuration
 - **⚙️ Full-featured ROS 2 CLI plugin**: `ros2 unbag <args>` for automation and scripting  
@@ -21,7 +37,7 @@
 ## Table of Contents
 - [Introduction](#introduction)
 - [Installation](#installation)  
-  - [apt (Recommended)](#apt-recommended)  
+  - [Install via apt (Recommended)](#install-via-apt-recommended)
   - [From Source](#from-source)  
   - [Docker](#docker)  
 - [Quick Start](#quick-start)  
@@ -52,16 +68,16 @@ Whether you prefer the **GUI for interactive exploration** or `ros2 unbag <args>
 
 ## Installation 
 
-### apt (Recommended)
+### Install via apt (Recommended)
 
-*ros2 unbag* is released as a binary package for ROS 2 Humble, Jazzy, Lyrical, and Rolling. Install it directly via `apt`:
+*ros2 unbag* is officially released as a binary package for ROS 2 Humble, Jazzy, Lyrical, and Rolling. Install it from the ROS apt repositories:
 
 ```bash
 sudo apt update
 sudo apt install ros-<distro>-unbag
 ```
 
-Replace `<distro>` with your ROS 2 distribution (e.g. `humble`, `jazzy`, `lyrical`, `rolling`). No need to clone or build anything—`ros2 unbag` is available right away after sourcing your ROS 2 installation.
+Replace `<distro>` with your ROS 2 distribution (e.g. `humble`, `jazzy`, `kilted`, `lyrical`, `rolling`). No need to clone or build anything—`ros2 unbag` is available right away after sourcing your ROS 2 installation.
 
 ### From source
 
