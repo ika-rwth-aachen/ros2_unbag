@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Query ROS apt repositories
         run: APT_BADGE_OUTPUT_DIRECTORY=_site/apt-versions python3 .github/scripts/update_apt_badges.py
@@ -33,4 +35,4 @@ jobs:
 
       - name: Deploy badge site
         id: deployment
-        uses: actions/deploy-pages@v4.0.5
+        uses: actions/deploy-pages@v5
