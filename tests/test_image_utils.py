@@ -114,3 +114,44 @@ def test_unsupported_encoding_raises():
     h, w = 1, 1
     with pytest.raises(ValueError):
         convert_image(np.zeros(1, dtype=np.uint8), "weird42", w, h)
+
+
+# ROS bayer_* names describe the top-left 2x2 pixel block in raster order
+# (row0col0, row0col1, row1col0, row1col1). Tiling that block and decoding
+# it must reconstruct the same colors, regardless of which OpenCV
+# COLOR_BAYER_* constant happens to share letters with the ROS name.
+_BAYER8_CASES = [
+    ("bayer_rggb8", [[200, 100], [100, 50]], (50, 100, 200)),
+    ("bayer_bggr8", [[50, 100], [100, 200]], (50, 100, 200)),
+    ("bayer_gbrg8", [[100, 50], [200, 100]], (50, 100, 200)),
+    ("bayer_grbg8", [[100, 200], [50, 100]], (50, 100, 200)),
+]
+
+
+@pytest.mark.parametrize("encoding, tile, expected_bgr", _BAYER8_CASES)
+def test_convert_bayer8_reconstructs_correct_channels(encoding, tile, expected_bgr):
+    h, w = 4, 4
+    arr = np.tile(np.array(tile, dtype=np.uint8), (h // 2, w // 2)).reshape(-1)
+    out = convert_image(arr, encoding, w, h)
+    assert out.shape == (h, w, 3)
+    assert out.dtype == np.uint8
+    # sample an interior pixel to avoid border interpolation artifacts
+    assert tuple(int(c) for c in out[2, 2]) == expected_bgr
+
+
+@pytest.mark.parametrize(
+    "encoding, tile, expected_bgr",
+    [
+        (enc.replace("8", "16"), tile, tuple(c * 100 for c in bgr))
+        for enc, tile, bgr in _BAYER8_CASES
+    ],
+)
+def test_convert_bayer16_reconstructs_correct_channels(encoding, tile, expected_bgr):
+    h, w = 4, 4
+    tile16 = (np.array(tile, dtype=np.uint16)) * 100
+    arr16 = np.tile(tile16, (h // 2, w // 2))
+    buf = arr16.reshape(-1).view(np.uint8)
+    out = convert_image(buf, encoding, w, h)
+    assert out.shape == (h, w, 3)
+    assert out.dtype == np.uint16
+    assert tuple(int(c) for c in out[2, 2]) == expected_bgr

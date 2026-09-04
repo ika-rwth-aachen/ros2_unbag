@@ -54,14 +54,14 @@ def convert_image(img, encoding, width, height):
         "bgra16":      lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width, 4), cv2.COLOR_BGRA2BGR),
         "rgba16":      lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width, 4), cv2.COLOR_RGBA2BGR),
         "yuv422":      lambda: cv2.cvtColor(img.reshape(height, width, 2), cv2.COLOR_YUV2BGR_YUY2),
-        "bayer_rggb8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_RG2BGR),
-        "bayer_bggr8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_BG2BGR),
-        "bayer_gbrg8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_GB2BGR),
-        "bayer_grbg8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_GR2BGR),
-        "bayer_rggb16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_RG2BGR),
-        "bayer_bggr16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_BG2BGR),
-        "bayer_gbrg16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_GB2BGR),
-        "bayer_grbg16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_GR2BGR),
+        "bayer_rggb8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_BG2BGR),
+        "bayer_bggr8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_RG2BGR),
+        "bayer_gbrg8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_GR2BGR),
+        "bayer_grbg8": lambda: cv2.cvtColor(img.reshape(height, width), cv2.COLOR_BAYER_GB2BGR),
+        "bayer_rggb16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_BG2BGR),
+        "bayer_bggr16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_RG2BGR),
+        "bayer_gbrg16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_GR2BGR),
+        "bayer_grbg16": lambda: cv2.cvtColor(img.view(np.uint16).reshape(height, width), cv2.COLOR_BAYER_GB2BGR),
     }
 
     if encoding in converters:
