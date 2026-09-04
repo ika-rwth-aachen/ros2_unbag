@@ -88,6 +88,8 @@ def write_badge(distro: str, version: str | None, tag_version: str | None) -> No
     badge = {
         "schemaVersion": 1,
         "label": f"apt · {distro.title()}",
+        "namedLogo": "ros",
+        "logoColor": "white",
         "message": display_version(version) or "unavailable",
         "color": badge_color(version, tag_version),
         "cacheSeconds": 3600,
