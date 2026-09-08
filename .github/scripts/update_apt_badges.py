@@ -87,7 +87,7 @@ def write_badge(distro: str, version: str | None, tag_version: str | None) -> No
     """Write an endpoint schema understood by shields.io."""
     badge = {
         "schemaVersion": 1,
-        "label": f"apt · {distro.title()}",
+        "label": f"{distro.title()}",
         "namedLogo": "ros",
         "logoColor": "white",
         "message": display_version(version) or "unavailable",
