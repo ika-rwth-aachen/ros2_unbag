@@ -80,7 +80,8 @@ ROS binary repositories are updated on ROS build farm sync cycles, so a new rele
 pip install ros2-unbag
 ```
 
-PyPI/pip is no longer the official distribution channel; use the ROS binary package once it becomes available for your distro.
+> [!WARNING]
+> PyPI/pip is no longer the official distribution channel; use the ROS binary package once it becomes available for your distro.
 
 ### From source
 
