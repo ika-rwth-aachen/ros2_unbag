@@ -16,16 +16,6 @@
 
 *ros2 unbag* is a powerful ROS 2 tool featuring an **intuitive GUI** and **flexible CLI** for extracting topics from `.db3` or `.mcap` bag files into formats like CSV, JSON, PCD, images, and more.
 
-> [!IMPORTANT]
-> **Official releases are now available as ROS binary packages via `apt`.** PyPI/pip is no longer the official distribution channel.
->
-> ```bash
-> sudo apt update
-> sudo apt install ros-<distro>-unbag
-> ```
->
-> Replace `<distro>` with your ROS 2 distribution, such as `humble`, `jazzy`, `lyrical`, or `rolling`.
-
 - **🎨 Intuitive GUI interface** for interactive bag exploration and export configuration
 - **⚙️ Full-featured ROS 2 CLI plugin**: `ros2 unbag <args>` for automation and scripting  
 - **🔌 Pluggable export routines** enable export of any message to any type  
@@ -33,6 +23,11 @@
 - **⏱️ Time‐aligned resampling** (`last` | `nearest`)  
 - **🚀 Multi‐process** export with adjustable CPU usage  
 - **💾 JSON config** saving/loading for repeatable workflows
+
+> [!TIP]
+> **Quick install:** `sudo apt update && sudo apt install ros-<distro>-unbag`
+>
+> ROS binary packages are now the official distribution channel. See the distro badges above for current availability; [installation details and a temporary pip fallback](#install-via-apt-recommended) are provided below.
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -70,14 +65,22 @@ Whether you prefer the **GUI for interactive exploration** or `ros2 unbag <args>
 
 ### Install via apt (Recommended)
 
-*ros2 unbag* is officially released as a binary package for ROS 2 Humble, Jazzy, Lyrical, and Rolling. Install it from the ROS apt repositories:
+*ros2 unbag* is released as a binary package for ROS 2 Humble, Jazzy, Kilted, Lyrical, and Rolling. Install it from the ROS apt repositories:
 
 ```bash
 sudo apt update
 sudo apt install ros-<distro>-unbag
 ```
 
-Replace `<distro>` with your ROS 2 distribution (e.g. `humble`, `jazzy`, `kilted`, `lyrical`, `rolling`). No need to clone or build anything—`ros2 unbag` is available right away after sourcing your ROS 2 installation.
+Replace `<distro>` with your ROS 2 distribution (e.g. `humble`, `jazzy`, `kilted`, `lyrical`, or `rolling`). Once installed, source your ROS 2 installation and `ros2 unbag` is ready to use.
+
+ROS binary repositories are updated on ROS build farm sync cycles, so a new release may not be available for every distribution immediately. The distro badges at the top of this README show the versions currently available via `apt`. If your distro has not been synced yet, use the temporary PyPI fallback:
+
+```bash
+pip install ros2-unbag
+```
+
+PyPI/pip is no longer the official distribution channel; use the ROS binary package once it becomes available for your distro.
 
 ### From source
 
