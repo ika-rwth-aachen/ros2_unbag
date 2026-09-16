@@ -53,21 +53,6 @@ def _install_dependency_stubs():
     sys.modules.setdefault("sensor_msgs", sensor_msgs)
     sys.modules.setdefault("sensor_msgs.msg", sensor_msgs_msg)
 
-    cv2 = types.ModuleType("cv2")
-    cv2.IMREAD_UNCHANGED = 0
-    cv2.COLOR_GRAY2BGR = 1
-    cv2.COLOR_RGB2BGR = 2
-    cv2.COLOR_BGRA2BGR = 3
-    cv2.COLOR_RGBA2BGR = 4
-    cv2.COLOR_YUV2BGR_YUY2 = 5
-    cv2.COLOR_BAYER_RG2BGR = 6
-    cv2.COLOR_BAYER_BG2BGR = 7
-    cv2.COLOR_BAYER_GB2BGR = 8
-    cv2.COLOR_BAYER_GR2BGR = 9
-    cv2.VideoWriter_fourcc = lambda *args: 0
-    sys.modules.setdefault("cv2", cv2)
-
-
 _install_dependency_stubs()
 
 from ros2_unbag.core.routines import image  # noqa: E402
