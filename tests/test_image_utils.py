@@ -20,12 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import cv2  # noqa: F401
 import numpy as np
 import pytest
-
-# Skip suite if OpenCV is unavailable in the environment
-pytest.importorskip("cv2")
-import cv2
 
 from ros2_unbag.core.utils.image_utils import convert_image
 

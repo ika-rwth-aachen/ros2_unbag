@@ -20,10 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import pytest
-
-pytest.importorskip("cv2")
+import cv2  # noqa: F401
 import numpy as np
+import pytest
 
 from pathlib import Path
 
@@ -47,7 +46,6 @@ class DummyWriter:
 
 
 def test_ensure_bgr_converts_grayscale():
-    import cv2
     gray = np.zeros((2, 3), dtype=np.uint8)
     bgr = V.ensure_bgr(gray)
     assert bgr.shape == (2, 3, 3)
@@ -110,4 +108,3 @@ def test_finalize_single_frame_creates_writer(monkeypatch, tmp_path: Path):
     assert created["count"] == 1
     assert "writer" not in ps
     assert ps.get("buffer") is None or len(ps.get("buffer", [])) == 0
-
