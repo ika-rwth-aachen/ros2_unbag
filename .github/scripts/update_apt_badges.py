@@ -19,9 +19,9 @@ DISTROS = {
     "humble": "jammy",
     "jazzy": "noble",
     "kilted": "noble",
-    "lyrical": "noble",
+    "lyrical": "resolute",
     # Update this codename when the ROS Rolling apt repository moves to a new Ubuntu release.
-    "rolling": "noble",
+    "rolling": "resolute",
 }
 OUTPUT_DIRECTORY = Path(os.environ.get("APT_BADGE_OUTPUT_DIRECTORY", ".github/badges/apt-versions"))
 
