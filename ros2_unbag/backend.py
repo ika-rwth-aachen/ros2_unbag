@@ -287,6 +287,10 @@ def validate_export_config(
 
     for topic in selected:
         if topic not in bag_reader.topic_types:
+            raw_cfg = copy.deepcopy(topic_configs.get(topic, {}) or {})
+            if raw_cfg.get("optional", False) is True:
+                final_config[topic] = raw_cfg
+                continue
             raise ValueError(f"Topic '{topic}' not found in bag.")
 
         topic_type = bag_reader.topic_types[topic]

@@ -133,3 +133,64 @@ def test_exporter_raises_for_missing_required_args():
     }
     with pytest.raises(ValueError, match="Missing required arguments"):
         build_exporter(topic_cfg)
+
+
+@pytest.fixture
+def optional_topic_config():
+    return {
+        "/test": {
+            "format": "test_fmt",
+            "path": ".",
+            "subfolder": "",
+            "naming": "%name_%index",
+            "optional": True,
+        },
+        "/joint_states": {"optional": True},
+    }
+
+
+def test_exporter_skips_missing_optional_topic(optional_topic_config, caplog):
+    exporter = Exporter(DummyBagReader(), optional_topic_config, {})
+
+    assert list(exporter.config) == ["/test"]
+    assert "/test" in exporter.topic_handlers
+    assert "/joint_states" not in exporter.index_map
+    assert "/joint_states" in optional_topic_config
+    assert caplog.messages == ["Optional topic '/joint_states' not found in bag; skipping."]
+
+
+@pytest.mark.parametrize("optional_setting", [{}, {"optional": False}])
+def test_exporter_rejects_missing_required_topic(optional_topic_config, optional_setting):
+    optional_topic_config["/joint_states"] = optional_setting
+
+    with pytest.raises(ValueError, match="Topic '/joint_states' not found in bag"):
+        Exporter(DummyBagReader(), optional_topic_config, {})
+
+
+def test_exporter_rejects_missing_optional_master(optional_topic_config):
+    global_config = {"resample_config": {"master_topic": "/joint_states"}}
+
+    with pytest.raises(ValueError, match="Resampling master topic '/joint_states' not found"):
+        Exporter(DummyBagReader(), optional_topic_config, global_config)
+
+
+def test_exporter_rejects_no_remaining_topics(optional_topic_config):
+    del optional_topic_config["/test"]
+
+    with pytest.raises(ValueError, match="nothing to export"):
+        Exporter(DummyBagReader(), optional_topic_config, {})
+
+
+def test_backend_accepts_missing_optional_topic(monkeypatch, optional_topic_config, caplog):
+    from ros2_unbag import backend
+
+    monkeypatch.setattr(backend, "resolve_bag_path", lambda path: (path, "sqlite3"))
+    monkeypatch.setattr(backend, "BagReader", lambda path: DummyBagReader())
+
+    config, _ = backend.validate_export_config(
+        "bag", optional_topic_config, {}, selected_topics=list(optional_topic_config)
+    )
+
+    assert config["/joint_states"]["optional"] is True
+    assert config["/test"]["optional"] is True
+    assert "Optional topic '/joint_states' not found in bag; skipping." in caplog.messages
