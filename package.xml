@@ -23,6 +23,7 @@
   <exec_depend>python3-tqdm</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>rosbag2_compression_zstd</exec_depend>
   <exec_depend>rosidl_runtime_py</exec_depend>
   <exec_depend>ros2cli</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
