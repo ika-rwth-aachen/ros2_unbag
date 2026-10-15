@@ -20,6 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
+
 import pytest
 
 from ros2_unbag.core.exporter import Exporter
@@ -149,14 +151,23 @@ def optional_topic_config():
     }
 
 
-def test_exporter_skips_missing_optional_topic(optional_topic_config, caplog):
+@pytest.fixture
+def exporter_caplog(caplog, monkeypatch):
+    logger = logging.getLogger(Exporter.__module__)
+    # ROS launch loggers disable propagation to pytest's root capture handler.
+    monkeypatch.setattr(logger, "propagate", True)
+    caplog.set_level(logging.WARNING, logger=logger.name)
+    return caplog
+
+
+def test_exporter_skips_missing_optional_topic(optional_topic_config, exporter_caplog):
     exporter = Exporter(DummyBagReader(), optional_topic_config, {})
 
     assert list(exporter.config) == ["/test"]
     assert "/test" in exporter.topic_handlers
     assert "/joint_states" not in exporter.index_map
     assert "/joint_states" in optional_topic_config
-    assert caplog.messages == ["Optional topic '/joint_states' not found in bag; skipping."]
+    assert exporter_caplog.messages == ["Optional topic '/joint_states' not found in bag; skipping."]
 
 
 @pytest.mark.parametrize("optional_setting", [{}, {"optional": False}])
@@ -181,7 +192,7 @@ def test_exporter_rejects_no_remaining_topics(optional_topic_config):
         Exporter(DummyBagReader(), optional_topic_config, {})
 
 
-def test_backend_accepts_missing_optional_topic(monkeypatch, optional_topic_config, caplog):
+def test_backend_accepts_missing_optional_topic(monkeypatch, optional_topic_config, exporter_caplog):
     from ros2_unbag import backend
 
     monkeypatch.setattr(backend, "resolve_bag_path", lambda path: (path, "sqlite3"))
@@ -193,4 +204,4 @@ def test_backend_accepts_missing_optional_topic(monkeypatch, optional_topic_conf
 
     assert config["/joint_states"]["optional"] is True
     assert config["/test"]["optional"] is True
-    assert "Optional topic '/joint_states' not found in bag; skipping." in caplog.messages
+    assert "Optional topic '/joint_states' not found in bag; skipping." in exporter_caplog.messages
