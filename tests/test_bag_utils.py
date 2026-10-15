@@ -133,3 +133,40 @@ def test_reject_unsupported_storage_identifier(tmp_path: Path):
 
     with pytest.raises(ValueError, match="Unsupported storage identifier"):
         resolve_bag_path(str(bag_dir))
+
+
+@pytest.mark.parametrize("storage_id, extension", [("sqlite3", "db3"), ("mcap", "mcap")])
+@pytest.mark.parametrize("mode", ["message", "file", "MESSAGE", "FILE"])
+def test_resolve_compressed_folder(tmp_path, storage_id, extension, mode):
+    segment = f"bag_0.{extension}" + (".zstd" if mode.lower() == "file" else "")
+    (tmp_path / "metadata.yaml").write_text(
+        "rosbag2_bagfile_information:\n"
+        f"  storage_identifier: {storage_id}\n"
+        f"  compression_mode: {mode}\n"
+        "  compression_format: zstd\n"
+        f"  relative_file_paths: [{segment}]\n"
+    )
+    (tmp_path / segment).touch()
+
+    assert resolve_bag_path(str(tmp_path)) == (str(tmp_path), storage_id)
+
+
+def test_reject_compressed_folder_with_missing_segment(tmp_path):
+    (tmp_path / "metadata.yaml").write_text(
+        "rosbag2_bagfile_information:\n"
+        "  storage_identifier: sqlite3\n"
+        "  compression_mode: file\n"
+        "  compression_format: zstd\n"
+        "  relative_file_paths: [missing.db3.zstd]\n"
+    )
+
+    with pytest.raises(ValueError, match="expected at least 1"):
+        resolve_bag_path(str(tmp_path))
+
+
+@pytest.mark.parametrize("content", ["[", "{}", "null", "rosbag2_bagfile_information: []"])
+def test_reject_invalid_metadata(tmp_path, content):
+    (tmp_path / "metadata.yaml").write_text(content)
+
+    with pytest.raises(ValueError, match="Invalid bag metadata"):
+        resolve_bag_path(str(tmp_path))

@@ -47,6 +47,7 @@ def _install_ros_stubs():
     rosbag2_py = types.ModuleType("rosbag2_py")
     rosbag2_py.ConverterOptions = object
     rosbag2_py.SequentialReader = object
+    rosbag2_py.SequentialCompressionReader = object
     rosbag2_py.StorageFilter = object
     rosbag2_py.StorageOptions = object
     sys.modules.setdefault("rosbag2_py", rosbag2_py)

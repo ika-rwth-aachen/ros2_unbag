@@ -11,6 +11,7 @@ This guide covers advanced features of *ros2 unbag* including configuration file
 - [Resampling](#resampling)
   - [Last Strategy](#last-strategy)
   - [Nearest Strategy](#nearest-strategy)
+- [Compressed Bags](#compressed-bags)
 - [CPU Utilization](#cpu-utilization)
 
 ## Configuration Files
@@ -140,6 +141,18 @@ ros2 unbag rosbag.mcap \
 ```
 
 This exports point clouds and camera images, ensuring each camera image is the temporally closest one to each point cloud, within 0.5 seconds.
+
+## Compressed Bags
+
+rosbag2 `message` and `file` compression are detected automatically. Pass the bag **directory containing `metadata.yaml`**, rather than an individual segment:
+
+```bash
+ros2 unbag /path/to/compressed_bag --config config.json
+```
+
+The same directory can be opened in the GUI. Decompression uses the installed rosbag2 plugin named by the metadata; no additional flag is needed. The standard zstd plugin is a runtime dependency. For other compression formats, install and source the corresponding rosbag2 decompression plugin.
+
+For `file` compression, rosbag2 may write decompressed segment files beside the compressed originals, so the bag directory must be writable.
 
 ## CPU Utilization
 

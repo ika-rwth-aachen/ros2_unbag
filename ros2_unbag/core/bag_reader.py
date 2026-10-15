@@ -21,18 +21,20 @@
 # SOFTWARE.
 
 from collections import defaultdict, deque
+from pathlib import Path
 
 from tf2_msgs.msg import TFMessage
 
 from rclpy.serialization import deserialize_message
 from rosbag2_py import (
     ConverterOptions,
+    SequentialCompressionReader,
     SequentialReader,
     StorageFilter,
     StorageOptions,
 )
 from rosidl_runtime_py.utilities import get_message
-from ros2_unbag.core.utils.bag_utils import resolve_bag_path
+from ros2_unbag.core.utils.bag_utils import read_bag_metadata, resolve_bag_path
 
 
 class BagReader:
@@ -49,7 +51,6 @@ class BagReader:
             None
         """
         self.bag_path, self.storage_id = resolve_bag_path(bag_path)
-        self.reader = SequentialReader()
         self.topic_types = {}
         self.metadata = None
         self._tf_queue = deque()    # Queue for TF messages - used to handle transforms
@@ -69,18 +70,52 @@ class BagReader:
             RuntimeError: If bag cannot be opened.
         """
         try:
-            storage_options = StorageOptions(uri=self.bag_path,
-                                             storage_id=self.storage_id)
-            converter_options = ConverterOptions(
-                input_serialization_format='cdr',
-                output_serialization_format='cdr')
-            self.reader.open(storage_options, converter_options)
+            self.reader = self._create_reader()
             self.topic_types = {
                 t.name: t.type for t in self.reader.get_all_topics_and_types()
             }
             self.metadata = self.reader.get_metadata()
         except Exception as e:
             raise RuntimeError(f"Failed to open bag: {e}")
+
+    def _create_reader(self):
+        """
+        Open a reader using the installed rosbag2 decompressor when needed.
+
+        Args:
+            None
+
+        Returns:
+            SequentialReader or SequentialCompressionReader: Open reader selected
+            according to the bag metadata's compression mode.
+
+        Raises:
+            ValueError: If the bag metadata is invalid.
+            OSError: If the bag metadata cannot be read.
+            RuntimeError: If the bag cannot be opened or its decompressor cannot be loaded.
+        """
+        metadata_path = Path(self.bag_path) / "metadata.yaml"
+        metadata = read_bag_metadata(str(metadata_path)) if metadata_path.is_file() else {}
+        compression_mode = (metadata.get("compression_mode") or "").lower()
+        compression_format = metadata.get("compression_format", "")
+        reader_type = (
+            SequentialCompressionReader
+            if compression_mode in ("message", "file") else SequentialReader
+        )
+        reader = reader_type()
+        try:
+            reader.open(
+                StorageOptions(uri=self.bag_path, storage_id=self.storage_id),
+                ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr'),
+            )
+        except Exception as e:
+            if compression_mode in ("message", "file"):
+                raise RuntimeError(
+                    f"Cannot open {compression_mode}-compressed bag ({compression_format}): {e}. "
+                    "Ensure the matching rosbag2 decompression plugin is installed and sourced."
+                ) from e
+            raise
+        return reader
 
     def get_topics(self):
         """
@@ -131,13 +166,7 @@ class BagReader:
             RuntimeError: If frequency calculation fails.
         """
         try:
-            reader = SequentialReader()
-            storage_options = StorageOptions(uri=self.bag_path,
-                                             storage_id=self.storage_id)
-            converter_options = ConverterOptions(
-                input_serialization_format='cdr',
-                output_serialization_format='cdr')
-            reader.open(storage_options, converter_options)
+            reader = self._create_reader()
 
             topic_timestamps = defaultdict(list)
             while reader.has_next():

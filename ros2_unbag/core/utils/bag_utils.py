@@ -22,6 +22,8 @@
 
 import os
 
+import yaml
+
 
 _STORAGE_BY_EXTENSION = {
     ".db3": "sqlite3",
@@ -90,7 +92,12 @@ def _resolve_bag_folder(folder_path: str) -> tuple[str, str]:
             f"Invalid bag folder '{folder_path}': missing metadata.yaml."
         )
 
-    storage_id = _read_storage_identifier(metadata_path)
+    metadata = read_bag_metadata(metadata_path)
+    storage_id = metadata.get("storage_identifier")
+    if not storage_id:
+        raise ValueError(
+            f"Invalid bag metadata '{metadata_path}': missing storage_identifier."
+        )
     ext = _EXTENSION_BY_STORAGE.get(storage_id)
     if ext is None:
         supported = ", ".join(sorted(_EXTENSION_BY_STORAGE.keys()))
@@ -99,37 +106,46 @@ def _resolve_bag_folder(folder_path: str) -> tuple[str, str]:
             f"Supported: {supported}."
         )
 
-    segment_files = [
-        name for name in os.listdir(folder_path)
-        if os.path.isfile(os.path.join(folder_path, name)) and name.lower().endswith(ext)
-    ]
+    if (metadata.get("compression_mode") or "").lower() == "file":
+        # Compressed segment names are recorded by rosbag2, including codec suffixes.
+        segment_files = [
+            name for name in metadata.get("relative_file_paths", [])
+            if os.path.isfile(os.path.join(folder_path, name))
+        ]
+    else:
+        segment_files = [
+            name for name in os.listdir(folder_path)
+            if os.path.isfile(os.path.join(folder_path, name)) and name.lower().endswith(ext)
+        ]
     if len(segment_files) < 1:
         raise ValueError(
-            f"Invalid bag folder '{folder_path}': expected at least 1 '{ext}' bag file."
+            f"Invalid bag folder '{folder_path}': expected at least 1 bag segment "
+            f"for storage '{storage_id}'."
         )
 
     return folder_path, storage_id
 
 
-def _read_storage_identifier(metadata_path: str) -> str:
+def read_bag_metadata(metadata_path: str) -> dict:
     """
-    Extract the storage identifier from a ROS 2 bag metadata file.
+    Read the bag information mapping from a ROS 2 metadata.yaml file.
 
     Args:
         metadata_path: Path to metadata.yaml.
 
     Returns:
-        str: Storage identifier value (e.g., ``sqlite3`` or ``mcap``).
+        dict: Contents of the rosbag2_bagfile_information mapping.
 
     Raises:
-        ValueError: If no ``storage_identifier`` entry is present.
+        ValueError: If the YAML is invalid or the bag information mapping is missing or invalid.
+        OSError: If the metadata file cannot be read.
     """
-    with open(metadata_path, "r", encoding="utf-8") as metadata_file:
-        for line in metadata_file:
-            stripped = line.strip()
-            if stripped.startswith("storage_identifier:"):
-                return stripped.split(":", 1)[1].strip().strip("'\"")
-
-    raise ValueError(
-        f"Invalid bag metadata '{metadata_path}': missing storage_identifier."
-    )
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as metadata_file:
+            metadata = yaml.safe_load(metadata_file)
+        information = metadata["rosbag2_bagfile_information"]
+        if not isinstance(information, dict):
+            raise ValueError("bag information must be a mapping")
+        return information
+    except (yaml.YAMLError, KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"Invalid bag metadata '{metadata_path}': {e}") from e
