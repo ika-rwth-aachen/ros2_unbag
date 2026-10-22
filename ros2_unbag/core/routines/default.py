@@ -20,14 +20,54 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from collections import OrderedDict
 import csv
 import json
 from pathlib import Path
 
-from rosidl_runtime_py import message_to_ordereddict, message_to_yaml
+from rosidl_runtime_py import message_to_ordereddict
+import yaml
+from yaml import CSafeDumper
 
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
 from ros2_unbag.core.utils.file_utils import get_time_from_msg
+
+
+class _RosYamlDumper(CSafeDumper):
+    """Serialize ROS field mappings with LibYAML while preserving field order."""
+
+
+def _represent_ordered_mapping(dumper, data):
+    """
+    Represent ordered ROS fields as a standard YAML mapping, without sorting.
+
+    Args:
+        dumper: YAML dumper used to represent the mapping.
+        data: Ordered dictionary containing ROS message fields.
+
+    Returns:
+        yaml.nodes.MappingNode: YAML mapping with the original field order.
+    """
+    return dumper.represent_dict(data.items())
+
+
+def _represent_yaml_string(dumper, data):
+    """
+    Quote Unicode line separators so YAML parsing preserves their values.
+
+    Args:
+        dumper: YAML dumper used to represent the string.
+        data: String value to serialize.
+
+    Returns:
+        yaml.nodes.ScalarNode: YAML string scalar with Unicode separators escaped.
+    """
+    style = '"' if any(separator in data for separator in ("\x85", "\u2028", "\u2029")) else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+
+_RosYamlDumper.add_representer(OrderedDict, _represent_ordered_mapping)
+_RosYamlDumper.add_representer(str, _represent_yaml_string)
 
 
 @ExportRoutine.set_catch_all(["text/json", "text/yaml", "table/csv"], mode=ExportMode.MULTI_FILE)
@@ -121,8 +161,14 @@ def _serialize_message_with_timestamp(msg, fmt, timestamp):
         serialized_line_with_timestamp = f'"{timestamp.isoformat()}": {serialized_line}'
         return serialized_line_with_timestamp
     elif fmt == "yaml":
-        yaml_content = message_to_yaml(msg)
-        indented_yaml_content = "\n".join(f"  {line}" for line in yaml_content.splitlines())
+        # LibYAML's line-width setting is a signed 32-bit integer.
+        yaml_content = yaml.dump(
+            message_to_ordereddict(msg), Dumper=_RosYamlDumper,
+            allow_unicode=True, width=2**31 - 1, default_flow_style=False,
+        )
+        # Split only emitted LF lines: splitlines() also consumes Unicode line
+        # separators inside scalars. Remove just the document's final newline.
+        indented_yaml_content = "\n".join(f"  {line}" for line in yaml_content.removesuffix("\n").split("\n"))
         serialized_line_with_timestamp = f"{timestamp}:\n{indented_yaml_content}"
         return serialized_line_with_timestamp
     elif fmt == "csv":
