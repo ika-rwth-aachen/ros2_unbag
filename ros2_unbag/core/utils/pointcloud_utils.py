@@ -26,10 +26,7 @@ import numpy as np
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
 
-try:
-    from ros2_unbag._native import lzf_compress as _native_lzf_compress
-except ImportError:
-    _native_lzf_compress = None
+from ros2_unbag._native import lzf_compress as _lzf_compress
 
 
 _POINT_FIELD_DTYPES = {
@@ -474,79 +471,6 @@ def _pcd_struct_of_arrays_bytes(msg: PointCloud2, packed: np.ndarray) -> bytes:
     for _field, packed_offset, field_width in layout:
         chunks.append(np.ascontiguousarray(packed[:, packed_offset:packed_offset + field_width]).tobytes())
     return b"".join(chunks)
-
-
-def _lzf_compress(data: bytes) -> bytes:
-    """
-    Compress data using the LZF format expected by binary-compressed PCD files.
-
-    Args:
-        data: Uncompressed byte payload.
-
-    Returns:
-        bytes: LZF-compressed payload.
-    """
-    if _native_lzf_compress is not None:
-        return _native_lzf_compress(data)
-
-    if not data:
-        return b""
-
-    hlog = 14
-    hsize = 1 << hlog
-    max_lit = 1 << 5
-    max_off = 1 << 13
-    max_ref = (1 << 8) + (1 << 3)
-    table = [-1] * hsize
-    output = bytearray()
-    literals = bytearray()
-    i = 0
-    data_len = len(data)
-
-    def flush_literals() -> None:
-        while literals:
-            chunk = literals[:max_lit]
-            del literals[:max_lit]
-            output.append(len(chunk) - 1)
-            output.extend(chunk)
-
-    while i < data_len:
-        if i < data_len - 2:
-            hval = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2]
-            slot = ((hval * 57321) >> 9) & (hsize - 1)
-            ref = table[slot]
-            table[slot] = i
-            off = i - ref - 1
-
-            if (
-                ref >= 0
-                and off < max_off
-                and data[ref:ref + 3] == data[i:i + 3]
-            ):
-                flush_literals()
-                match_len = 3
-                max_match = min(data_len - i, max_ref)
-                while match_len < max_match and data[ref + match_len] == data[i + match_len]:
-                    match_len += 1
-
-                length_code = match_len - 2
-                if length_code < 7:
-                    output.append((length_code << 5) | (off >> 8))
-                else:
-                    output.append((7 << 5) | (off >> 8))
-                    output.append(length_code - 7)
-                output.append(off & 0xFF)
-
-                i += match_len
-                continue
-
-        literals.append(data[i])
-        if len(literals) == max_lit:
-            flush_literals()
-        i += 1
-
-    flush_literals()
-    return bytes(output)
 
 
 def format_pcd_binary_compressed_data(msg: PointCloud2) -> bytes:

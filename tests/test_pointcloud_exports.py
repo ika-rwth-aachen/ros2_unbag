@@ -25,7 +25,8 @@ import struct
 import sys
 import types
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Prefer the built package so its required native extension remains importable.
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
 def _install_dependency_stubs():

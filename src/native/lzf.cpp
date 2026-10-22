@@ -31,7 +31,7 @@
 namespace {
 
 /**
- * @brief Compress a byte buffer using the Python fallback's exact LZF algorithm.
+ * @brief Compress a byte buffer using the original Python implementation's LZF algorithm.
  *
  * Preserves match selection and the resulting byte stream, including inputs
  * whose compressed representation is larger than the source. All match
