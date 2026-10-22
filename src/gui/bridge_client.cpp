@@ -28,7 +28,12 @@
 
 namespace {
 
-// Parse one JSON object returned by the Python bridge.
+/**
+ * @brief Parse one JSON object returned by the Python bridge.
+ * @param data UTF-8 JSON response bytes.
+ * @param error Optional output for a parse or non-object response error.
+ * @return Parsed object on success, or an empty object on failure.
+ */
 QJsonObject parseJsonObject(const QByteArray &data, QString *error) {
   QJsonParseError parseError;
   const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);

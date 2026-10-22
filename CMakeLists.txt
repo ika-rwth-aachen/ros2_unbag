@@ -16,11 +16,19 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets Svg)
 
 ament_python_install_package(ros2_unbag)
 ament_get_python_install_dir(PYTHON_INSTALL_DIR)
+
+Python3_add_library(_native MODULE src/native/lzf.cpp)
+set_target_properties(_native PROPERTIES AUTOMOC OFF AUTORCC OFF AUTOUIC OFF)
+# Optimize the kernel even when colcon does not specify a build type.
+target_compile_options(_native PRIVATE
+  "$<$<AND:$<NOT:$<CONFIG:Debug>>,$<CXX_COMPILER_ID:GNU,Clang>>:-O3>"
+)
+install(TARGETS _native LIBRARY DESTINATION "${PYTHON_INSTALL_DIR}/ros2_unbag")
 
 set(UNBAG_EGG_INFO_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_metadata/unbag.egg-info")
 set(ROS2_UNBAG_INSTALL_EGG_INFO_DIR
@@ -42,14 +50,14 @@ add_custom_target(unbag_python_metadata ALL
 )
 
 add_executable(ros2_unbag_gui
-  src/main.cpp
-  src/bridge_client.cpp
-  src/main_window.cpp
-  src/processor_chain_widget.cpp
+  src/gui/main.cpp
+  src/gui/bridge_client.cpp
+  src/gui/main_window.cpp
+  src/gui/processor_chain_widget.cpp
   qt_resources/resources.qrc
 )
 
-target_include_directories(ros2_unbag_gui PRIVATE src)
+target_include_directories(ros2_unbag_gui PRIVATE src/gui)
 target_link_libraries(ros2_unbag_gui PRIVATE Qt5::Core Qt5::Widgets Qt5::Svg)
 
 install(TARGETS ros2_unbag_gui

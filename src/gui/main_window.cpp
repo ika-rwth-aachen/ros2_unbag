@@ -75,10 +75,18 @@
 
 namespace {
 
+/**
+ * @brief Keep ROS bag files visible but unselectable in the bag folder picker.
+ */
 class BagFolderProxyModel : public QSortFilterProxyModel {
 public:
   using QSortFilterProxyModel::QSortFilterProxyModel;
 
+  /**
+   * @brief Return item flags with selection disabled for bag database files.
+   * @param index Proxy-model item whose flags should be queried.
+   * @return Base item flags, with enabled and selectable flags cleared for bags.
+   */
   Qt::ItemFlags flags(const QModelIndex &index) const override {
     Qt::ItemFlags itemFlags = QSortFilterProxyModel::flags(index);
     const QModelIndex sourceIndex = mapToSource(index);
@@ -106,6 +114,11 @@ public:
   }
 };
 
+/**
+ * @brief Extract the format name before an optional mode suffix.
+ * @param format Export format, optionally followed by an at-sign and mode.
+ * @return Format name without its mode suffix.
+ */
 QString splitFormatBase(const QString &format) {
   const int idx = format.lastIndexOf('@');
   if (idx < 0) {
@@ -114,6 +127,11 @@ QString splitFormatBase(const QString &format) {
   return format.left(idx);
 }
 
+/**
+ * @brief Extract the mode suffix from an export format.
+ * @param format Export format, optionally followed by an at-sign and mode.
+ * @return Mode suffix, or an empty string when the format has no suffix.
+ */
 QString splitFormatMode(const QString &format) {
   const int idx = format.lastIndexOf('@');
   if (idx < 0) {
@@ -122,6 +140,12 @@ QString splitFormatMode(const QString &format) {
   return format.mid(idx + 1);
 }
 
+/**
+ * @brief Shorten the middle of a topic path to fit the target label.
+ * @param path Full topic path to display.
+ * @param label Target label providing the font and available width; may be null.
+ * @return Elided path, or the original path when no label is supplied.
+ */
 QString elideTopicPath(const QString &path, const QLabel *label) {
   if (label == nullptr) {
     return path;
@@ -132,6 +156,11 @@ QString elideTopicPath(const QString &path, const QLabel *label) {
   return metrics.elidedText(path, Qt::ElideMiddle, qMax(40, label->width()));
 }
 
+/**
+ * @brief Apply the selected-topic background to all columns of a tree item.
+ * @param item Topic tree item to update; null is ignored.
+ * @param checked Whether the topic is selected for export.
+ */
 void applyCheckedStyle(QTreeWidgetItem *item, bool checked) {
   if (item == nullptr) {
     return;

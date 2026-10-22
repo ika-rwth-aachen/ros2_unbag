@@ -25,7 +25,7 @@
 #include <QApplication>
 
 /**
- * Entry point for the Qt GUI executable.
+ * @brief Entry point for the Qt GUI executable.
  *
  * @param argc Argument count.
  * @param argv Argument vector.

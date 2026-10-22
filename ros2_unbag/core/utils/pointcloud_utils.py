@@ -26,6 +26,11 @@ import numpy as np
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
 
+try:
+    from ros2_unbag._native import lzf_compress as _native_lzf_compress
+except ImportError:
+    _native_lzf_compress = None
+
 
 _POINT_FIELD_DTYPES = {
     PointField.INT8: ("i1", 1, "I", "b"),
@@ -481,6 +486,9 @@ def _lzf_compress(data: bytes) -> bytes:
     Returns:
         bytes: LZF-compressed payload.
     """
+    if _native_lzf_compress is not None:
+        return _native_lzf_compress(data)
+
     if not data:
         return b""
 

@@ -37,7 +37,7 @@ class QVBoxLayout;
 class ProcessorChainWidget;
 
 /**
- * One editable processor entry inside a processor chain.
+ * @brief One editable processor entry inside a processor chain.
  *
  * Stores the selected processor plus any argument inputs for that processor.
  */
@@ -46,29 +46,50 @@ class ProcessorEntryWidget : public QFrame {
 
 public:
   /**
-   * Construct one processor entry widget.
+   * @brief Construct one processor entry widget.
    *
    * @param chainWidget Owning processor chain widget.
    */
   explicit ProcessorEntryWidget(ProcessorChainWidget *chainWidget);
 
-  /// Update the displayed 1-based index and move-button state.
+  /**
+   * @brief Update the displayed 1-based index and move-button state.
+   * @param index One-based position of this processor entry.
+   * @param total Total number of processor entries.
+   */
   void setIndex(int index, int total);
-  /// Apply a saved processor config to the entry UI.
+  /**
+   * @brief Apply a saved processor config to the entry UI.
+   * @param config Saved configuration to apply to the editor.
+   */
   void applyConfig(const QJsonObject &config);
-  /// Select the first available processor definition.
+  /**
+   * @brief Select the first available processor definition.
+   */
   void selectDefault();
-  /// Serialize the current entry UI state into a config object.
+  /**
+   * @brief Serialize the current entry UI state into a config object.
+   * @return Selected processor name and argument values.
+   */
   QJsonObject config() const;
 
 private slots:
-  /// Rebuild argument inputs after the selected processor changes.
+  /**
+   * @brief Rebuild argument inputs after the selected processor changes.
+   * @param processorName Name of the selected processor.
+   */
   void onProcessorChanged(const QString &processorName);
 
 private:
-  /// Remove all dynamic argument input rows.
+  /**
+   * @brief Remove all dynamic argument input rows.
+   */
   void clearArgs();
-  /// Look up the processor definition for one processor name.
+  /**
+   * @brief Look up the processor definition for one processor name.
+   * @param name Processor name to look up.
+   * @return Definition matching the processor name, or an empty object.
+   */
   QJsonObject processorDefinition(const QString &name) const;
 
   ProcessorChainWidget *chainWidget_;
@@ -82,48 +103,82 @@ private:
 };
 
 /**
- * Editor widget for ordered per-topic processor chains.
+ * @brief Editor widget for ordered per-topic processor chains.
  */
 class ProcessorChainWidget : public QWidget {
   Q_OBJECT
 
 public:
   /**
-   * Construct the processor chain editor widget.
+   * @brief Construct the processor chain editor widget.
    *
    * @param parent Optional Qt parent widget.
    */
   explicit ProcessorChainWidget(QWidget *parent = nullptr);
 
-  /// Replace the available processor definitions for the current topic type.
+  /**
+   * @brief Replace the available processor definitions for the current topic type.
+   * @param definitions Available processor definitions for the topic.
+   */
   void setProcessorDefinitions(const QJsonArray &definitions);
-  /// Replace the current chain entries from saved config.
+  /**
+   * @brief Replace the current chain entries from saved config.
+   * @param configs Ordered processor configurations to display.
+   */
   void setChain(const QJsonArray &configs);
-  /// Serialize the current chain to JSON config.
+  /**
+   * @brief Serialize the current chain to JSON config.
+   * @return Processor configurations in their current execution order.
+   */
   QJsonArray chain() const;
-  /// Return available processor names for the current topic type.
+  /**
+   * @brief Return available processor names for the current topic type.
+   * @return Names of the available processors for the topic.
+   */
   QStringList availableProcessorNames() const;
-  /// Look up one processor definition by name.
+  /**
+   * @brief Look up one processor definition by name.
+   * @param name Processor name to look up.
+   * @return Definition matching the processor name, or an empty object.
+   */
   QJsonObject processorDefinition(const QString &name) const;
 
 signals:
-  /// Emitted whenever the chain contents or order changes.
+  /**
+   * @brief Emitted whenever the chain contents or order changes.
+   */
   void changed();
 
 private slots:
-  /// Append a new empty processor entry.
+  /**
+   * @brief Append a new empty processor entry.
+   */
   void addEntry();
 
 private:
-  /// Append a new processor entry using an optional preset config.
+  /**
+   * @brief Append a new processor entry using an optional preset config.
+   * @param preset Initial processor configuration for the new entry.
+   */
   void addEntry(const QJsonObject &preset);
-  /// Remove one processor entry from the chain.
+  /**
+   * @brief Remove one processor entry from the chain.
+   * @param entry Processor entry to remove or move.
+   */
   void removeEntry(ProcessorEntryWidget *entry);
-  /// Move one processor entry up or down by one position.
+  /**
+   * @brief Move one processor entry up or down by one position.
+   * @param entry Processor entry to remove or move.
+   * @param delta Position change, normally minus one or plus one.
+   */
   void moveEntry(ProcessorEntryWidget *entry, int delta);
-  /// Refresh entry indices and move-button states.
+  /**
+   * @brief Refresh entry indices and move-button states.
+   */
   void reindexEntries();
-  /// Show or hide the empty-state hint.
+  /**
+   * @brief Show or hide the empty-state hint.
+   */
   void updateEmptyHint();
 
   friend class ProcessorEntryWidget;
