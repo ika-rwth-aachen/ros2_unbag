@@ -40,6 +40,8 @@ def apply_color_map(msg, color_map: int = 1):
 
     Returns:
         CompressedImage or Image ROS 2 message instance with the color map applied.
+        CompressedImage output uses lossless PNG to avoid JPEG degradation
+        between processors. The export routine handles the final file format.
 
     Raises:
         ValueError: If color_map is not an integer.
@@ -73,13 +75,13 @@ def apply_color_map(msg, color_map: int = 1):
     # Apply the color map
     recolored = cv2.applyColorMap(cv_image, color_map)
 
-    # Reencode the recolored image back to the original format
+    # Keep compressed intermediates lossless while retaining the ROS message type.
     if isinstance(msg, CompressedImage):
-        ext = '.jpg' if 'jpeg' in msg.format.lower() else '.png'
-        success, encoded = cv2.imencode(ext, recolored)
+        success, encoded = cv2.imencode('.png', recolored)
         if not success:
             raise RuntimeError("Failed to encode recolored image")
         msg.data = encoded.tobytes()
+        msg.format = "bgr8; png compressed bgr8"
     elif isinstance(msg, Image):
         # recolored is H×W×3, BGR
         msg.encoding = "bgr8"
