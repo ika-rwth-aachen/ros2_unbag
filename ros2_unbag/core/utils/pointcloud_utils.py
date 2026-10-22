@@ -84,7 +84,8 @@ def apply_pointcloud_transform(msg, translation, rotation):
         PointCloud2: Transformed PointCloud2 message.
 
     Raises:
-        ValueError: If message fields are missing or inputs are malformed.
+        ValueError: If coordinate fields are missing, are not scalar FLOAT32 or
+            FLOAT64 values, or inputs are malformed.
     """
     translation = np.asarray(translation, dtype=float).reshape(-1)
     rotation = np.asarray(rotation, dtype=float).reshape(-1)
@@ -96,31 +97,38 @@ def apply_pointcloud_transform(msg, translation, rotation):
     transform_matrix = quaternion_matrix(rotation)
     transform_matrix[0:3, 3] = translation
 
-    offsets = {}
-    for field in msg.fields:
-        if field.name in ('x', 'y', 'z'):
-            offsets[field.name] = field.offset
-
-    if not all(k in offsets for k in ('x', 'y', 'z')):
+    coordinates = {field.name: field for field in msg.fields if field.name in ('x', 'y', 'z')}
+    if not all(name in coordinates for name in ('x', 'y', 'z')):
         raise ValueError("PointCloud2 message does not contain x, y, z fields")
 
-    x_off = offsets['x']
-    y_off = offsets['y']
-    z_off = offsets['z']
+    for field in coordinates.values():
+        if field.datatype not in (PointField.FLOAT32, PointField.FLOAT64) or _field_count(field) != 1:
+            raise ValueError(f"Coordinate field '{field.name}' must be scalar FLOAT32 or FLOAT64")
+        if field.offset < 0 or field.offset + _field_byte_width(field) > msg.point_step:
+            raise ValueError(f"Coordinate field '{field.name}' exceeds point_step")
 
     data = bytearray(msg.data)  # mutable copy
+    if msg.width and msg.height:
+        endian = ">" if msg.is_bigendian else "<"
+        points = np.ones((msg.height, msg.width, 4), dtype=np.float64)
+        views = []
+        for axis, name in enumerate(('x', 'y', 'z')):
+            field = coordinates[name]
+            view = np.ndarray(
+                shape=(msg.height, msg.width),
+                dtype=_field_dtype(field, endian=endian),
+                buffer=data,
+                offset=field.offset,
+                strides=(msg.row_step, msg.point_step),
+            )
+            views.append(view)
+            points[..., axis] = view
 
-    for i in range(0, len(data), msg.point_step):
-        x = struct.unpack_from('f', data, i + x_off)[0]
-        y = struct.unpack_from('f', data, i + y_off)[0]
-        z = struct.unpack_from('f', data, i + z_off)[0]
-
-        point = np.array([x, y, z, 1.0])
-        transformed = transform_matrix @ point
-
-        struct.pack_into('f', data, i + x_off, transformed[0])
-        struct.pack_into('f', data, i + y_off, transformed[1])
-        struct.pack_into('f', data, i + z_off, transformed[2])
+        # Batch the original 4x4-by-vector operation. A matrix-by-matrix product
+        # or expanded scalar formula can round differently, even in FLOAT32 output.
+        transformed = (transform_matrix @ points[..., np.newaxis])[..., 0]
+        for axis, view in enumerate(views):
+            view[...] = transformed[..., axis]
 
     transformed_msg = PointCloud2()
     transformed_msg.header = msg.header
