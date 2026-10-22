@@ -139,19 +139,21 @@ def pointcloud_remove_fields(msg, fields_to_remove: str):
     new_point_step = dst_offset
     new_row_step = new_point_step * msg.width
 
-    # Prepare new data buffer; respect row padding in source and pack rows densely in output
-    num_rows = msg.height if msg.height > 0 else 1
-    src = memoryview(msg.data)
-    new_data = bytearray(new_row_step * num_rows)
-
-    for r in range(num_rows):
-        src_row_base = r * msg.row_step
-        dst_row_base = r * new_row_step
-        for c in range(msg.width):
-            src_base = src_row_base + c * msg.point_step
-            dst_base = dst_row_base + c * new_point_step
-            for s_off, size, d_off in segments:
-                new_data[dst_base + d_off: dst_base + d_off + size] = src[src_base + s_off: src_base + s_off + size]
+    # View each point as raw bytes, respecting source row and point padding.
+    # Copy whole fields across all points without interpreting their byte order.
+    new_data = bytearray(new_row_step * msg.height)
+    if msg.width:
+        source = np.ndarray(
+            shape=(msg.height, msg.width, msg.point_step),
+            dtype=np.uint8,
+            buffer=memoryview(msg.data),
+            strides=(msg.row_step, msg.point_step, 1),
+        )
+        destination = np.frombuffer(new_data, dtype=np.uint8).reshape(
+            msg.height, msg.width, new_point_step
+        )
+        for src_offset, size, dst_offset in segments:
+            destination[..., dst_offset:dst_offset + size] = source[..., src_offset:src_offset + size]
 
     # Assemble new PointCloud2 message
     out = PointCloud2()
