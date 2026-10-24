@@ -27,6 +27,7 @@ from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
 
 from ros2_unbag._native import lzf_compress as _lzf_compress
+from ros2_unbag._native import format_pointcloud_ascii as _format_pointcloud_ascii
 
 
 _POINT_FIELD_DTYPES = {
@@ -428,18 +429,45 @@ def format_pcd_ascii_data(msg: PointCloud2) -> bytes:
     Returns:
         bytes: UTF-8 encoded ASCII point rows.
     """
-    packed = pointcloud2_to_pcd_array(msg)
-    lines = []
-    for point in packed:
-        values = []
-        for field in msg.fields:
-            value = point[field.name]
-            if np.isscalar(value):
-                values.append(str(value.item()))
-            else:
-                values.extend(str(component.item()) for component in np.asarray(value).reshape(-1))
-        lines.append(" ".join(values))
-    return ("\n".join(lines) + ("\n" if lines else "")).encode("utf-8")
+    packed = _packed_point_byte_matrix(msg)
+    schema = tuple((field.datatype, _field_count(field)) for field in msg.fields)
+    return _format_pointcloud_ascii(packed.tobytes(), schema, msg.width * msg.height)
+
+
+def format_pointcloud_xyz_data(msg: PointCloud2) -> bytes:
+    """
+    Serialize XYZ coordinates with native formatting and correct row traversal.
+
+    Args:
+        msg: PointCloud2 message with scalar FLOAT32 x, y, and z fields.
+
+    Returns:
+        bytes: ASCII XYZ rows, omitting NaN rows when the cloud is not dense.
+
+    Raises:
+        ValueError: If a coordinate field is missing or is not scalar FLOAT32.
+    """
+    fields = {field.name: field for field in msg.fields}
+    for name in ("x", "y", "z"):
+        if name not in fields:
+            raise ValueError(f"PointCloud2 missing '{name}' field")
+        if fields[name].datatype != PointField.FLOAT32 or _field_count(fields[name]) != 1:
+            raise ValueError(f"Field '{name}' must be scalar FLOAT32")
+        if fields[name].offset < 0 or fields[name].offset + 4 > msg.point_step:
+            raise ValueError(f"Field '{name}' exceeds point_step")
+
+    point_count = msg.width * msg.height
+    xyz = np.empty((msg.height, msg.width, 12), dtype=np.uint8)
+    if point_count:
+        source = _point_byte_view(msg)
+        for axis, name in enumerate(("x", "y", "z")):
+            field_bytes = source[..., fields[name].offset:fields[name].offset + 4]
+            if msg.is_bigendian:
+                field_bytes = field_bytes[..., ::-1]
+            xyz[..., axis * 4:axis * 4 + 4] = field_bytes
+
+    schema = ((PointField.FLOAT32, 1),) * 3
+    return _format_pointcloud_ascii(xyz.tobytes(), schema, point_count, not msg.is_dense)
 
 
 def format_pcd_binary_data(msg: PointCloud2) -> bytes:

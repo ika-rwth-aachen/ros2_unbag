@@ -22,7 +22,11 @@ find_package(Qt5 REQUIRED COMPONENTS Core Widgets Svg)
 ament_python_install_package(ros2_unbag)
 ament_get_python_install_dir(PYTHON_INSTALL_DIR)
 
-Python3_add_library(_native MODULE src/native/lzf.cpp)
+Python3_add_library(_native MODULE
+  src/native/module.cpp
+  src/native/lzf.cpp
+  src/native/pointcloud_ascii.cpp
+)
 set_target_properties(_native PROPERTIES AUTOMOC OFF AUTORCC OFF AUTOUIC OFF)
 # Optimize the kernel even when colcon does not specify a build type.
 target_compile_options(_native PRIVATE

@@ -20,8 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
+#include "bindings.hpp"
 
 #include <array>
 #include <cstddef>
@@ -90,6 +89,8 @@ std::size_t compress(const unsigned char* data, std::size_t size, unsigned char*
     return written;
 }
 
+}  // namespace
+
 /**
  * @brief Expose LZF compression as a Python function accepting immutable bytes.
  *
@@ -125,27 +126,4 @@ PyObject* lzf_compress(PyObject*, PyObject* args) {
         PyBytes_AS_STRING(output), static_cast<Py_ssize_t>(written));
     Py_DECREF(output);
     return result;
-}
-
-/** @brief Python-callable functions exported by the compression module. */
-PyMethodDef methods[] = {
-    {"lzf_compress", lzf_compress, METH_VARARGS,
-     "Compress bytes to the same LZF stream as the Python PCD compressor."},
-    {nullptr, nullptr, 0, nullptr},
-};
-
-/** @brief Definition of the stateless native PCD compression module. */
-PyModuleDef module = {
-    PyModuleDef_HEAD_INIT, "_native", "Native PCD compression accelerator.",
-    -1, methods, nullptr, nullptr, nullptr, nullptr,
-};
-
-}  // namespace
-
-/**
- * @brief Initialize the ros2_unbag._native extension module.
- * @return New reference to the module, or nullptr with a Python exception set.
- */
-PyMODINIT_FUNC PyInit__native() {
-    return PyModule_Create(&module);
 }

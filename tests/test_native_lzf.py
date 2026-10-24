@@ -47,7 +47,11 @@ def native(tmp_path_factory):
     library = tmp_path_factory.mktemp("native-lzf") / "_native.so"
     subprocess.run([
         compiler, "-std=c++17", "-O3", "-Wall", "-Wextra", "-Wpedantic", "-shared", "-fPIC",
-        "-I" + sysconfig.get_path("include"), str(ROOT / "src/native/lzf.cpp"), "-o", str(library),
+        "-I" + sysconfig.get_path("include"),
+        str(ROOT / "src/native/module.cpp"),
+        str(ROOT / "src/native/lzf.cpp"),
+        str(ROOT / "src/native/pointcloud_ascii.cpp"),
+        "-o", str(library),
     ], check=True)
     spec = importlib.util.spec_from_file_location("_native", library)
     module = importlib.util.module_from_spec(spec)

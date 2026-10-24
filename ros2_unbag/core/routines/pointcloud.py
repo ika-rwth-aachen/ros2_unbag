@@ -20,15 +20,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import struct
-import math
 from pathlib import Path
 import pickle
 
-from sensor_msgs.msg import PointField
-
 from ros2_unbag.core.routines.base import ExportRoutine, ExportMode, ExportMetadata
-from ros2_unbag.core.utils.pointcloud_utils import write_pointcloud_pcd
+from ros2_unbag.core.utils.pointcloud_utils import format_pointcloud_xyz_data, write_pointcloud_pcd
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pkl"], mode=ExportMode.MULTI_FILE)
@@ -52,7 +48,7 @@ def export_pointcloud_pkl(msg, path: Path, fmt: str, metadata: ExportMetadata):
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/xyz"], mode=ExportMode.MULTI_FILE)
 def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
     """
-    Export PointCloud2 message as an XYZ text file by unpacking x, y, z floats from each point and writing lines.
+    Export PointCloud2 message as XYZ text using native scalar formatting.
 
     Args:
         msg: PointCloud2 message instance.
@@ -63,31 +59,10 @@ def export_pointcloud_xyz(msg, path: Path, fmt: str, metadata: ExportMetadata):
     Returns:
         None
     """
-    # Validate required fields
-    field_by_name = {f.name: f for f in msg.fields}
-    for name in ("x", "y", "z"):
-        if name not in field_by_name:
-            raise ValueError(f"PointCloud2 missing '{name}' field")
-
-    # Require FLOAT32 for x,y,z
-    for name in ("x", "y", "z"):
-        if field_by_name[name].datatype != PointField.FLOAT32:
-            raise ValueError(f"Field '{name}' must be FLOAT32")
-
-    offx, offy, offz = field_by_name["x"].offset, field_by_name["y"].offset, field_by_name["z"].offset
-    endian = ">" if msg.is_bigendian else "<"
-
+    payload = format_pointcloud_xyz_data(msg)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path.with_suffix(".xyz"), "w") as f:
-        step = msg.point_step
-        data = msg.data  # bytes/array('B')
-        for i in range(0, len(data), step):
-            x = struct.unpack_from(endian + "f", data, i + offx)[0]
-            y = struct.unpack_from(endian + "f", data, i + offy)[0]
-            z = struct.unpack_from(endian + "f", data, i + offz)[0]
-            if not msg.is_dense and (math.isnan(x) or math.isnan(y) or math.isnan(z)):
-                continue
-            f.write(f"{x} {y} {z}\n")
+    with open(path.with_suffix(".xyz"), "wb") as f:
+        f.write(payload)
 
 
 @ExportRoutine("sensor_msgs/msg/PointCloud2", ["pointcloud/pcd", "pointcloud/pcd_compressed", "pointcloud/pcd_ascii"], mode=ExportMode.MULTI_FILE)
