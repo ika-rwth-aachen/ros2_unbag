@@ -52,18 +52,28 @@ class Exporter:
         logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
         self.bag_reader = bag_reader
-        self.config = export_config
+        self.config = dict(export_config)
         self.global_config = global_config
         self.topic_types = self.bag_reader.topic_types
         self.progress_callback = progress_callback
 
+        # Only explicitly optional topics may be absent from the bag.
+        master_topic = (global_config.get("resample_config") or {}).get("master_topic")
+        for topic, cfg in export_config.items():
+            if topic not in self.topic_types:
+                if topic == master_topic:
+                    raise ValueError(f"Resampling master topic '{topic}' not found in bag.")
+                if cfg.get("optional", False) is True:
+                    self.logger.warning("Optional topic '%s' not found in bag; skipping.", topic)
+                    del self.config[topic]
+                    continue
+                raise ValueError(f"Topic '{topic}' not found in bag. Available topics: {list(self.topic_types.keys())}")
+
+        if not self.config:
+            raise ValueError("No configured topics are present in the bag; nothing to export.")
+
         # Create a queue for worker exceptions to communicate back to the main process
         self.exception_queue = mp.Queue()
-
-        # check if topic exists in the bag, if not, raise an error and list all available topics
-        for topic in self.config:
-            if topic not in self.topic_types:
-                raise ValueError(f"Topic '{topic}' not found in bag. Available topics: {list(self.topic_types.keys())}")
 
         self.index_map = {t: 0 for t in self.config}
         self._resolved_formats = {}

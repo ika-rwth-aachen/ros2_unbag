@@ -8,6 +8,7 @@ This guide covers advanced features of *ros2 unbag* including configuration file
   - [Creating Configuration Files](#creating-configuration-files)
   - [Configuration File Structure](#configuration-file-structure)
   - [Using Configuration Files](#using-configuration-files)
+  - [Optional Topics](#optional-topics)
 - [Resampling](#resampling)
   - [Last Strategy](#last-strategy)
   - [Nearest Strategy](#nearest-strategy)
@@ -68,6 +69,7 @@ Here's an example configuration file:
 - `subfolder`: Subdirectory pattern (supports `%name` placeholder)
 - `naming`: Filename pattern (supports `%name`, `%index`, `%timestamp`, `%master_timestamp`, and strftime formats)
 - `processors`: Optional array of processor configurations with `name` and `args`
+- `optional`: Boolean, defaults to `false`. If `true`, a missing topic is skipped with a warning. When present, it is exported normally.
 
 **Global settings (`__global__`):**
 - `cpu_percentage`: Percentage of CPU cores to use (0-100)
@@ -83,6 +85,24 @@ ros2 unbag <path_to_rosbag> --config <config.json>
 
 > [!IMPORTANT]
 > If you specify the `--config` option, the tool will load all export settings from the given JSON configuration file. In this case, all other command-line options except `<path_to_rosbag>` are ignored, and the export process is fully controlled by the config file.
+
+### Optional Topics
+
+To reuse one configuration across bags with different topic sets, add `"optional": true` to topics that may be absent:
+
+```json
+{
+  "/joint_states": {
+    "format": "text/json@single_file",
+    "path": "./export",
+    "subfolder": "%name",
+    "naming": "%name",
+    "optional": true
+  }
+}
+```
+
+Missing topics without `"optional": true` still cause an error. A missing resampling master topic always causes an error, even if marked optional. If no configured topics remain after skipping, the export stops with an error explaining that there is nothing to export.
 
 ## Resampling
 
