@@ -9,7 +9,7 @@ on:
       ros_distro:
         description: Space-separated ROS distros to release to
         required: false
-        default: rolling humble jazzy lyrical
+        default: rolling jazzy kilted lyrical
 
 permissions:
   contents: read
@@ -20,11 +20,14 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v7.0.1
+      # humble is released manually (`bloom-release --ros-distro humble unbag`):
+      # python3-opencv is unavailable on RHEL 8, and bloom's "skip generator?"
+      # prompt crashes in CI (no tty) and aborts all remaining distros.
       - name: bloom release
         uses: at-wat/bloom-release-action@v0.0.13
         with:
           repository: unbag
-          ros_distro: ${{ inputs.ros_distro || 'rolling humble jazzy lyrical' }}
+          ros_distro: ${{ inputs.ros_distro || 'rolling jazzy kilted lyrical' }}
           github_token_bloom: ${{ secrets.BLOOM_GITHUB_TOKEN }}
           github_user: ${{ vars.BLOOM_GITHUB_USER }}
           git_user: ${{ vars.BLOOM_GIT_USER }}
